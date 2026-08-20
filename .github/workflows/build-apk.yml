@@ -26,6 +26,12 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
+      - name: Generate app icons from logo
+        run: |
+          npm install -D @capacitor/assets
+          mkdir -p resources
+          cp www/assets/logo.png resources/icon.png
+          npx capacitor-assets generate --android --iconBackgroundColor '#1B263B'
       - name: Add Android platform
         run: npx cap add android
 
