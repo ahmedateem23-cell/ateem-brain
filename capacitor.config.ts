@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.ateem.store',
-  appName: 'ATEEM STORE',
+  appName: 'Ateem Store',
   webDir: 'www',
   server: {
     allowNavigation: ['www.ateem-store.com', 'ateem-store.com']
