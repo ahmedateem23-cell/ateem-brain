@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -31,103 +30,59 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Generate app icons
+      - name: Generate app icons from logo
         run: |
           npm install -D @capacitor/assets
           mkdir -p resources
           cp www/assets/logo.png resources/icon.png
           npx capacitor-assets generate --android --iconBackgroundColor '#F8F6F2'
 
-      - name: Configure Android permissions
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          manifest = Path("android/app/src/main/AndroidManifest.xml")
-          text = manifest.read_text()
-
-          permission = '    <uses-permission android:name="android.permission.RECORD_AUDIO" />'
-
-          if "android.permission.RECORD_AUDIO" not in text:
-              text = text.replace(
-                  "<application",
-                  permission + "\n\n    <application",
-                  1
-              )
-
-          manifest.write_text(text)
-          PY
-
-      - name: Configure MainActivity
+      - name: Apply fullscreen MainActivity patch
         run: |
           mkdir -p android/app/src/main/java/com/ateem/store
 
           cat > android/app/src/main/java/com/ateem/store/MainActivity.java << 'EOF'
           package com.ateem.store;
 
-          import android.Manifest;
-          import android.content.pm.PackageManager;
           import android.os.Bundle;
           import android.view.View;
           import android.view.WindowManager;
-
-          import androidx.core.app.ActivityCompat;
-          import androidx.core.content.ContextCompat;
-
           import com.getcapacitor.BridgeActivity;
 
           public class MainActivity extends BridgeActivity {
 
-              private static final int MICROPHONE_PERMISSION_CODE = 1001;
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+              super.onCreate(savedInstanceState);
 
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
+              getWindow().addFlags(
+                  WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+              );
 
-                  getWindow().addFlags(
-                      WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                  );
+              hideSystemUI();
+            }
 
-                  hideSystemUI();
-                  requestMicrophonePermission();
+            @Override
+            public void onWindowFocusChanged(boolean hasFocus) {
+              super.onWindowFocusChanged(hasFocus);
+
+              if (hasFocus) {
+                hideSystemUI();
               }
+            }
 
-              @Override
-              public void onWindowFocusChanged(boolean hasFocus) {
-                  super.onWindowFocusChanged(hasFocus);
+            private void hideSystemUI() {
+              View decorView = getWindow().getDecorView();
 
-                  if (hasFocus) {
-                      hideSystemUI();
-                  }
-              }
-
-              private void hideSystemUI() {
-                  View decorView = getWindow().getDecorView();
-
-                  decorView.setSystemUiVisibility(
-                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                      | View.SYSTEM_UI_FLAG_FULLSCREEN
-                  );
-              }
-
-              private void requestMicrophonePermission() {
-                  if (
-                      ContextCompat.checkSelfPermission(
-                          this,
-                          Manifest.permission.RECORD_AUDIO
-                      ) != PackageManager.PERMISSION_GRANTED
-                  ) {
-                      ActivityCompat.requestPermissions(
-                          this,
-                          new String[]{Manifest.permission.RECORD_AUDIO},
-                          MICROPHONE_PERMISSION_CODE
-                      );
-                  }
-              }
+              decorView.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                  | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                  | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                  | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                  | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                  | View.SYSTEM_UI_FLAG_FULLSCREEN
+              );
+            }
           }
           EOF
 
@@ -139,11 +94,24 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+
           test -s android/app/release.keystore
 
       - name: Configure release signing
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          cat >> android/app/build.gradle << 'EOF'
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          path = Path("android/app/build.gradle")
+
+          text = path.read_text()
+
+          block = r'''
 
           android {
               signingConfigs {
@@ -162,17 +130,16 @@ jobs:
                   }
               }
           }
-          EOF
+          '''
+
+          path.write_text(text + block)
+          PY
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
       - name: Build release APK
         working-directory: android
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK artifact
