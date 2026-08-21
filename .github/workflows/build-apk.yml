@@ -12,11 +12,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore fixed debug keystore
-        run: |
-          mkdir -p ~/.android
-          echo "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" | base64 -d > ~/.android/debug.keystore
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -84,15 +79,41 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Restore release keystore
+        run: |
+          echo "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" | base64 -d > android/app/release.keystore
+
+      - name: Configure release signing
+        run: |
+          cat >> android/app/build.gradle << 'EOF'
+
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file("release.keystore")
+                      storePassword "Ateem2026Store"
+                      keyAlias "ateemrelease"
+                      keyPassword "Ateem2026Store"
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                      minifyEnabled false
+                  }
+              }
+          }
+          EOF
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ateem-store-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
