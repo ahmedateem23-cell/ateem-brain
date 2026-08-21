@@ -53,7 +53,7 @@ jobs:
             --splashBackgroundColor '#F5F0E8' \
             --splashBackgroundColorDark '#F5F0E8'
 
-      # 7. Create Native MainActivity + Bottom Navigation
+              # 7. Create Native Android shell
       - name: Create native Android shell
         run: |
 
@@ -92,8 +92,12 @@ jobs:
                   WebView webView = getBridge().getWebView();
 
                   if (webView != null) {
-                      webView.setBackgroundColor(Color.rgb(245, 240, 232));
-                      webView.getSettings().setJavaScriptEnabled(true);
+                      webView.setBackgroundColor(
+                          Color.rgb(245, 240, 232)
+                      );
+
+                      webView.getSettings()
+                          .setJavaScriptEnabled(true);
                   }
 
                   nativeNavigation = new NativeNavigation(
@@ -101,7 +105,30 @@ jobs:
                       webView
                   );
 
+                  /*
+                   * مهم:
+                   * Navigation يتم إنشاؤه الآن لكنه يبقى مخفيًا
+                   * أثناء بداية التطبيق.
+                   */
                   nativeNavigation.attach();
+
+                  /*
+                   * ننتظر حتى تنتهي مرحلة البداية قبل إظهار
+                   * Bottom Navigation.
+                   */
+                  if (webView != null) {
+
+                      webView.postDelayed(
+                          () -> {
+
+                              if (nativeNavigation != null) {
+                                  nativeNavigation.showSmoothly();
+                              }
+
+                          },
+                          1600
+                      );
+                  }
               }
 
               @Override
@@ -115,7 +142,8 @@ jobs:
 
               private void hideSystemUI() {
 
-                  View decorView = getWindow().getDecorView();
+                  View decorView =
+                      getWindow().getDecorView();
 
                   decorView.setSystemUiVisibility(
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -125,6 +153,317 @@ jobs:
                       | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                       | View.SYSTEM_UI_FLAG_FULLSCREEN
                   );
+              }
+          }
+          EOF
+
+
+          cat > android/app/src/main/java/com/ateem/store/NativeNavigation.java << 'EOF'
+          package com.ateem.store;
+
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.graphics.drawable.GradientDrawable;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.webkit.WebView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          public class NativeNavigation {
+
+              private final Activity activity;
+              private final WebView webView;
+
+              private LinearLayout navigationBar;
+
+              private final int NAVY =
+                  Color.rgb(27, 42, 61);
+
+              private final int CREAM =
+                  Color.rgb(240, 234, 224);
+
+              public NativeNavigation(
+                  Activity activity,
+                  WebView webView
+              ) {
+                  this.activity = activity;
+                  this.webView = webView;
+              }
+
+              public void attach() {
+
+                  if (webView == null) {
+                      return;
+                  }
+
+                  ViewGroup parent =
+                      (ViewGroup) webView.getParent();
+
+                  if (parent == null) {
+                      return;
+                  }
+
+                  navigationBar =
+                      createNavigationBar();
+
+                  ViewGroup.LayoutParams params =
+                      new ViewGroup.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          dp(66)
+                      );
+
+                  parent.addView(
+                      navigationBar,
+                      params
+                  );
+
+                  /*
+                   * أهم تعديل:
+                   * البار مخفي تمامًا عند بداية التطبيق.
+                   */
+                  navigationBar.setVisibility(
+                      View.GONE
+                  );
+
+                  positionNavigation(parent);
+
+                  webView.addOnLayoutChangeListener(
+                      (v,
+                       left,
+                       top,
+                       right,
+                       bottom,
+                       oldLeft,
+                       oldTop,
+                       oldRight,
+                       oldBottom) -> {
+
+                          positionNavigation(parent);
+                      }
+                  );
+              }
+
+              /*
+               * إظهار البار بعد انتهاء Splash
+               * مع انتقال ناعم.
+               */
+              public void showSmoothly() {
+
+                  if (navigationBar == null) {
+                      return;
+                  }
+
+                  navigationBar.setVisibility(
+                      View.VISIBLE
+                  );
+
+                  navigationBar.setAlpha(0f);
+
+                  navigationBar.animate()
+                      .alpha(1f)
+                      .setDuration(350)
+                      .start();
+              }
+
+              private LinearLayout createNavigationBar() {
+
+                  LinearLayout bar =
+                      new LinearLayout(activity);
+
+                  bar.setOrientation(
+                      LinearLayout.HORIZONTAL
+                  );
+
+                  bar.setGravity(
+                      Gravity.CENTER
+                  );
+
+                  bar.setPadding(
+                      dp(6),
+                      0,
+                      dp(6),
+                      0
+                  );
+
+                  GradientDrawable background =
+                      new GradientDrawable();
+
+                  background.setColor(NAVY);
+
+                  background.setCornerRadius(
+                      dp(24)
+                  );
+
+                  bar.setBackground(background);
+
+                  bar.setElevation(
+                      dp(12)
+                  );
+
+                  addItem(
+                      bar,
+                      "⌂",
+                      "الرئيسية",
+                      "/"
+                  );
+
+                  addItem(
+                      bar,
+                      "▢",
+                      "المتجر",
+                      "/shop"
+                  );
+
+                  addItem(
+                      bar,
+                      "🛒",
+                      "السلة",
+                      "/shop/cart"
+                  );
+
+                  addItem(
+                      bar,
+                      "○",
+                      "حسابي",
+                      "/my/account"
+                  );
+
+                  return bar;
+              }
+
+              private void addItem(
+                  LinearLayout bar,
+                  String icon,
+                  String label,
+                  String path
+              ) {
+
+                  LinearLayout item =
+                      new LinearLayout(activity);
+
+                  item.setOrientation(
+                      LinearLayout.VERTICAL
+                  );
+
+                  item.setGravity(
+                      Gravity.CENTER
+                  );
+
+                  item.setClickable(true);
+
+                  LinearLayout.LayoutParams itemParams =
+                      new LinearLayout.LayoutParams(
+                          0,
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          1
+                      );
+
+                  bar.addView(
+                      item,
+                      itemParams
+                  );
+
+                  TextView iconView =
+                      new TextView(activity);
+
+                  iconView.setText(icon);
+
+                  iconView.setTextSize(20);
+
+                  iconView.setGravity(
+                      Gravity.CENTER
+                  );
+
+                  iconView.setTextColor(
+                      CREAM
+                  );
+
+                  item.addView(
+                      iconView,
+                      new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          dp(27)
+                      )
+                  );
+
+                  TextView labelView =
+                      new TextView(activity);
+
+                  labelView.setText(label);
+
+                  labelView.setTextSize(9);
+
+                  labelView.setGravity(
+                      Gravity.CENTER
+                  );
+
+                  labelView.setTextColor(
+                      CREAM
+                  );
+
+                  item.addView(
+                      labelView,
+                      new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          dp(20)
+                      )
+                  );
+
+                  item.setOnClickListener(
+                      v -> navigate(path)
+                  );
+              }
+
+              private void navigate(String path) {
+
+                  if (webView == null) {
+                      return;
+                  }
+
+                  String current =
+                      webView.getUrl();
+
+                  String base =
+                      "https://www.ateem-store.com";
+
+                  String target =
+                      base + path;
+
+                  if (current != null &&
+                      current.equals(target)) {
+                      return;
+                  }
+
+                  webView.loadUrl(target);
+              }
+
+              private void positionNavigation(
+                  ViewGroup parent
+              ) {
+
+                  if (navigationBar == null) {
+                      return;
+                  }
+
+                  navigationBar.bringToFront();
+
+                  navigationBar.setTranslationY(
+                      -dp(14)
+                  );
+              }
+
+              private int dp(int value) {
+
+                  float density =
+                      activity
+                          .getResources()
+                          .getDisplayMetrics()
+                          .density;
+
+                  return (int)
+                      (value * density + 0.5f);
               }
           }
           EOF
