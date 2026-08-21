@@ -36,9 +36,13 @@ jobs:
           npm install -D @capacitor/assets
           mkdir -p resources
           cp www/assets/logo.png resources/icon.png
+          cp www/assets/logo.png resources/splash.png
           npx capacitor-assets generate \
             --android \
-            --iconBackgroundColor '#1B263B'
+            --iconBackgroundColor '#F5F0E8' \
+            --iconBackgroundColorDark '#F5F0E8' \
+            --splashBackgroundColor '#F5F0E8' \
+            --splashBackgroundColorDark '#F5F0E8'
 
       - name: Apply fullscreen MainActivity patch
         run: |
