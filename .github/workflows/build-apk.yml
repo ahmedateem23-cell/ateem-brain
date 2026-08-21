@@ -108,12 +108,21 @@ jobs:
           cat >> android/app/build.gradle <<'EOF'
 
           android {
+                    - name: Configure release signing
+        env:
+          ATEEM_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ATEEM_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ATEEM_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          cat >> android/app/build.gradle << 'EOF'
+
+          android {
               signingConfigs {
                   release {
                       storeFile file("release.keystore")
-                      storePassword project.findProperty("ATEEM_STORE_PASSWORD")
-                      keyAlias project.findProperty("ATEEM_KEY_ALIAS")
-                      keyPassword project.findProperty("ATEEM_KEY_PASSWORD")
+                      storePassword System.getenv("ATEEM_STORE_PASSWORD")
+                      keyAlias System.getenv("ATEEM_KEY_ALIAS")
+                      keyPassword System.getenv("ATEEM_KEY_PASSWORD")
                   }
               }
 
