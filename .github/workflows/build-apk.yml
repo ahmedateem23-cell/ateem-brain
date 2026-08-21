@@ -31,12 +31,14 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Generate app icons from logo
+      - name: Generate app icons
         run: |
           npm install -D @capacitor/assets
           mkdir -p resources
           cp www/assets/logo.png resources/icon.png
-          npx capacitor-assets generate --android --iconBackgroundColor '#1B263B'
+          npx capacitor-assets generate \
+            --android \
+            --iconBackgroundColor '#1B263B'
 
       - name: Apply fullscreen MainActivity patch
         run: |
@@ -103,8 +105,13 @@ jobs:
 
       - name: Configure release signing
         run: |
-          cat >> android/app/build.gradle << 'EOF'
+          python3 - <<'PY'
+          from pathlib import Path
 
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+
+          signing = r'''
           android {
               signingConfigs {
                   release {
@@ -122,10 +129,11 @@ jobs:
                   }
               }
           }
-          EOF
+          '''
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+          text += "\n" + signing
+          path.write_text(text)
+          PY
 
       - name: Build release APK
         working-directory: android
@@ -134,7 +142,13 @@ jobs:
           ATEEM_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           ATEEM_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease --no-daemon
+          echo "Checking signing configuration..."
+          test -n "$ATEEM_STORE_PASSWORD"
+          test -n "$ATEEM_KEY_ALIAS"
+          test -n "$ATEEM_KEY_PASSWORD"
+          test -s app/release.keystore
+
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
