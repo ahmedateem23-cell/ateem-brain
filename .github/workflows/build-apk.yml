@@ -51,15 +51,9 @@ jobs:
           cat > android/app/src/main/java/com/ateem/store/MainActivity.java << 'EOF'
           package com.ateem.store;
 
-          import android.Manifest;
-          import android.content.pm.PackageManager;
           import android.os.Bundle;
           import android.view.View;
           import android.view.WindowManager;
-          import android.webkit.PermissionRequest;
-          import android.webkit.WebChromeClient;
-          import androidx.core.app.ActivityCompat;
-          import androidx.core.content.ContextCompat;
           import com.getcapacitor.BridgeActivity;
 
           public class MainActivity extends BridgeActivity {
@@ -73,8 +67,6 @@ jobs:
               );
 
               hideSystemUI();
-              requestMicPermission();
-              enableWebViewMic();
             }
 
             @Override
@@ -98,45 +90,8 @@ jobs:
                   | View.SYSTEM_UI_FLAG_FULLSCREEN
               );
             }
-
-            private void requestMicPermission() {
-              if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                  != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{Manifest.permission.RECORD_AUDIO},
-                    1001
-                );
-              }
-            }
-
-            private void enableWebViewMic() {
-              this.bridge.getWebView().setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                  runOnUiThread(() -> request.grant(request.getResources()));
-                }
-              });
-            }
           }
           EOF
-
-      - name: Add microphone permission
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("android/app/src/main/AndroidManifest.xml")
-          text = path.read_text()
-
-          if "RECORD_AUDIO" not in text:
-              text = text.replace(
-                  "<manifest",
-                  '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n<manifest',
-                  1
-              )
-              path.write_text(text)
-          PY
 
       - name: Sync Capacitor
         run: npx cap sync android
