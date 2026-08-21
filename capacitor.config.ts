@@ -5,7 +5,12 @@ const config: CapacitorConfig = {
   appName: 'Ateem Store',
   webDir: 'www',
   server: {
-    allowNavigation: ['www.ateem-store.com', 'ateem-store.com']
+    allowNavigation: [
+      'www.ateem-store.com',
+      'ateem-store.com',
+      'ateem-store.odoo.com',
+      '*.odoo.com'
+    ]
   },
   android: {
     allowMixedContent: false,
