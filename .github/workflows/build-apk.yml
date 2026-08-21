@@ -8,7 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -29,50 +31,103 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Generate app icons from logo
+      - name: Generate app icons
         run: |
           npm install -D @capacitor/assets
           mkdir -p resources
           cp www/assets/logo.png resources/icon.png
-          npx capacitor-assets generate --android --iconBackgroundColor '#1B263B'
+          npx capacitor-assets generate --android --iconBackgroundColor '#F8F6F2'
 
-      - name: Apply fullscreen MainActivity patch
+      - name: Configure Android permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+
+          permission = '    <uses-permission android:name="android.permission.RECORD_AUDIO" />'
+
+          if "android.permission.RECORD_AUDIO" not in text:
+              text = text.replace(
+                  "<application",
+                  permission + "\n\n    <application",
+                  1
+              )
+
+          manifest.write_text(text)
+          PY
+
+      - name: Configure MainActivity
         run: |
           mkdir -p android/app/src/main/java/com/ateem/store
+
           cat > android/app/src/main/java/com/ateem/store/MainActivity.java << 'EOF'
           package com.ateem.store;
 
+          import android.Manifest;
+          import android.content.pm.PackageManager;
           import android.os.Bundle;
           import android.view.View;
           import android.view.WindowManager;
+
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+
           import com.getcapacitor.BridgeActivity;
 
           public class MainActivity extends BridgeActivity {
-            @Override
-            protected void onCreate(Bundle savedInstanceState) {
-              super.onCreate(savedInstanceState);
-              getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-              hideSystemUI();
-            }
 
-            @Override
-            public void onWindowFocusChanged(boolean hasFocus) {
-              super.onWindowFocusChanged(hasFocus);
-              if (hasFocus) {
-                hideSystemUI();
+              private static final int MICROPHONE_PERMISSION_CODE = 1001;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  getWindow().addFlags(
+                      WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                  );
+
+                  hideSystemUI();
+                  requestMicrophonePermission();
               }
-            }
 
-            private void hideSystemUI() {
-              View decorView = getWindow().getDecorView();
-              decorView.setSystemUiVisibility(
-                  View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN);
-            }
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+
+                  if (hasFocus) {
+                      hideSystemUI();
+                  }
+              }
+
+              private void hideSystemUI() {
+                  View decorView = getWindow().getDecorView();
+
+                  decorView.setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_FULLSCREEN
+                  );
+              }
+
+              private void requestMicrophonePermission() {
+                  if (
+                      ContextCompat.checkSelfPermission(
+                          this,
+                          Manifest.permission.RECORD_AUDIO
+                      ) != PackageManager.PERMISSION_GRANTED
+                  ) {
+                      ActivityCompat.requestPermissions(
+                          this,
+                          new String[]{Manifest.permission.RECORD_AUDIO},
+                          MICROPHONE_PERMISSION_CODE
+                      );
+                  }
+              }
           }
           EOF
 
@@ -80,8 +135,11 @@ jobs:
         run: npx cap sync android
 
       - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "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" | base64 -d > android/app/release.keystore
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+          test -s android/app/release.keystore
 
       - name: Configure release signing
         run: |
@@ -91,11 +149,12 @@ jobs:
               signingConfigs {
                   release {
                       storeFile file("release.keystore")
-                      storePassword "Ateem2026Store"
-                      keyAlias "ateemrelease"
-                      keyPassword "Ateem2026Store"
+                      storePassword System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("KEY_ALIAS")
+                      keyPassword System.getenv("KEY_PASSWORD")
                   }
               }
+
               buildTypes {
                   release {
                       signingConfig signingConfigs.release
@@ -110,6 +169,10 @@ jobs:
 
       - name: Build release APK
         working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK artifact
