@@ -4,199 +4,34 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>ATEEM STORE</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --cream:#F5F0E8;
-    --ink-soft:#3D3020;
-  }
-
-  *{margin:0;padding:0;box-sizing:border-box;}
-
-  html,body{
-    width:100%;
-    height:100%;
-    background:#F5F0E8;
-  }
-
-  #splash{
-    direction:ltr;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    position:fixed;
-    inset:0;
-    z-index:99999;
-    background:#F5F0E8;
-    transition: opacity 0.5s cubic-bezier(0.4,0,0.2,1),
-                transform 0.5s cubic-bezier(0.4,0,0.2,1);
-  }
-
-  #splash.exit{
-    opacity:0;
-    transform:scale(0.98);
-  }
-
-  #brand-wrap{
-    width:78%;
-    max-width:420px;
-  }
-  #brand-wrap svg{
-    width:100%;
-    height:auto;
-    display:block;
-    overflow:visible;
-  }
-
-  /* نص احتياطي بسيط يظهر فقط لو تعذّر رسم الخط */
-  #fallback-text{
-    display:none;
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size:44px;
-    font-weight:400;
-    letter-spacing:0.35em;
-    color:var(--ink-soft);
-    text-transform:uppercase;
-    padding-right:0.35em;
-    opacity:0;
-  }
-  #fallback-text.show{
-    display:block;
-    animation: fadeUp 0.9s cubic-bezier(0.22,1,0.36,1) forwards;
-  }
-  @keyframes fadeUp{
-    from{ opacity:0; transform:translateY(10px); }
-    to{ opacity:1; transform:translateY(0); }
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #F5F0E8;
   }
 </style>
 </head>
 <body>
-  <div id="splash">
-    <div id="brand-wrap"></div>
-    <div id="fallback-text">ATEEM</div>
-  </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
-  <script>
-    (function hideStatusBar() {
-      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar) {
-        window.Capacitor.Plugins.StatusBar.hide();
-      } else {
-        document.addEventListener('deviceready', function () {
-          if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar) {
-            window.Capacitor.Plugins.StatusBar.hide();
-          }
-        });
-      }
-    })();
-
-    var EXIT_DURATION_MS = 500;
-    var DESTINATION_URL = "https://www.ateem-store.com";
-    var exitScheduled = false;
-
-    function goExit(delay) {
-      if (exitScheduled) return;
-      exitScheduled = true;
-      setTimeout(function () {
-        var splash = document.getElementById('splash');
-        splash.classList.add('exit');
-        setTimeout(function () {
-          window.location.replace(DESTINATION_URL);
-        }, EXIT_DURATION_MS);
-      }, delay);
+<script>
+  (function hideStatusBar() {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar) {
+      window.Capacitor.Plugins.StatusBar.hide();
+    } else {
+      document.addEventListener('deviceready', function () {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar) {
+          window.Capacitor.Plugins.StatusBar.hide();
+        }
+      });
     }
+  })();
 
-    function showFallback() {
-      var el = document.getElementById('fallback-text');
-      el.classList.add('show');
-      goExit(1600);
-    }
+  window.location.replace("https://www.ateem-store.com");
+</script>
 
-    var drawStarted = false;
-    var FONT_URL = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/cormorantgaramond/CormorantGaramond-Regular.ttf";
-
-    var safetyTimer = setTimeout(function () {
-      if (!drawStarted) showFallback();
-    }, 2000);
-
-    function drawBrand(font) {
-      try {
-        var text = "ATEEM";
-        var fontSize = 92;
-        var path = font.getPath(text, 0, 0, fontSize, { kerning: true, letterSpacing: 0.04 });
-        var bbox = path.getBoundingBox();
-        var w = bbox.x2 - bbox.x1;
-        var h = bbox.y2 - bbox.y1;
-        var pad = h * 0.15;
-
-        var svgNS = "http://www.w3.org/2000/svg";
-        var svg = document.createElementNS(svgNS, "svg");
-        svg.setAttribute("viewBox", (bbox.x1 - pad) + " " + (bbox.y1 - pad) + " " + (w + pad * 2) + " " + (h + pad * 2));
-
-        var pathEl = document.createElementNS(svgNS, "path");
-        pathEl.setAttribute("d", path.toPathData(3));
-        pathEl.setAttribute("fill", "#3D3020");
-        pathEl.setAttribute("fill-opacity", "0");
-        pathEl.setAttribute("stroke", "#3D3020");
-        pathEl.setAttribute("stroke-width", "2");
-        pathEl.setAttribute("stroke-linecap", "round");
-        pathEl.setAttribute("stroke-linejoin", "round");
-
-        svg.appendChild(pathEl);
-        var wrap = document.getElementById('brand-wrap');
-        wrap.innerHTML = "";
-        wrap.appendChild(svg);
-
-        drawStarted = true;
-        clearTimeout(safetyTimer);
-
-        var length = pathEl.getTotalLength();
-        pathEl.style.strokeDasharray = length;
-        pathEl.style.strokeDashoffset = length;
-
-        // فرض إعادة رسم قبل بدء الأنيميشن
-        pathEl.getBoundingClientRect();
-
-        pathEl.style.transition = "stroke-dashoffset 1.9s cubic-bezier(0.65,0,0.35,1)";
-        requestAnimationFrame(function () {
-          pathEl.style.strokeDashoffset = "0";
-        });
-
-        setTimeout(function () {
-          pathEl.style.transition = "fill-opacity 0.7s ease";
-          pathEl.getBoundingClientRect();
-          pathEl.setAttribute("fill-opacity", "1");
-        }, 1950);
-
-        setTimeout(function () {
-          pathEl.style.transition += ", stroke-opacity 0.6s ease";
-          pathEl.getBoundingClientRect();
-          pathEl.style.strokeOpacity = "0.85";
-        }, 2650);
-
-        goExit(3400);
-      } catch (e) {
-        showFallback();
-      }
-    }
-
-    try {
-      if (window.opentype) {
-        opentype.load(FONT_URL, function (err, font) {
-          if (err || !font) {
-            showFallback();
-            return;
-          }
-          drawBrand(font);
-        });
-      } else {
-        showFallback();
-      }
-    } catch (e) {
-      showFallback();
-    }
-  </script>
 </body>
 </html>
 
