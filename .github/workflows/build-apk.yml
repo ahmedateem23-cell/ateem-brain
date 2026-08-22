@@ -2861,6 +2861,19 @@ jobs:
             --stacktrace
 
 
+      # 13.5 List build outputs (diagnostic - shows where the APK actually landed)
+      - name: List build outputs
+        run: |
+
+          echo "=== Searching for any APK files produced ==="
+
+          find android/app/build/outputs -type f -name "*.apk" 2>/dev/null || true
+
+          echo "=== Full outputs directory tree ==="
+
+          find android/app/build/outputs -type f 2>/dev/null || echo "outputs directory does not exist or is empty"
+
+
       # 14. Upload APK
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -2869,4 +2882,6 @@ jobs:
 
           name: ateem-store-apk
 
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+          if-no-files-found: error
