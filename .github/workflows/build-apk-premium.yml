@@ -328,29 +328,30 @@ jobs:
 
               public void attachTo(FrameLayout container) {
                   if (container == null) return;
-                  headerRow = new LinearLayout(activity);
-                  headerRow.setOrientation(LinearLayout.HORIZONTAL);
-                  headerRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-                  headerRow.setGravity(Gravity.CENTER_VERTICAL);
-                  headerRow.setPadding(dp(22), dp(16), dp(22), dp(10));
+                  LinearLayout headerLayout = new LinearLayout(activity);
+                  headerLayout.setOrientation(LinearLayout.HORIZONTAL);
+                  headerLayout.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  headerLayout.setGravity(Gravity.CENTER_VERTICAL);
+                  headerLayout.setPadding(dp(22), dp(16), dp(22), dp(10));
 
                   /* Glass morphism background */
                   GradientDrawable glassBg = new GradientDrawable();
                   glassBg.setColor(Color.argb(180, 10, 10, 15));
-                  headerRow.setBackground(glassBg);
+                  headerLayout.setBackground(glassBg);
 
                   View brand = buildBrand();
                   LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-                  headerRow.addView(brand, brandParams);
+                  headerLayout.addView(brand, brandParams);
 
                   View actions = buildActions();
-                  headerRow.addView(actions, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  headerLayout.addView(actions, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  headerRow = headerLayout;
 
                   FrameLayout.LayoutParams headerParams = new FrameLayout.LayoutParams(
                       ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
                   container.addView(headerRow, headerParams);
                   headerRow.bringToFront();
-              }
 
               public View buildStandalone() {
                   FrameLayout headerFrame = new FrameLayout(activity);
