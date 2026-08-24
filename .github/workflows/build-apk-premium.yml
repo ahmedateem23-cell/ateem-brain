@@ -352,6 +352,7 @@ jobs:
                       ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
                   container.addView(headerRow, headerParams);
                   headerRow.bringToFront();
+                  }
 
               public View buildStandalone() {
                   FrameLayout headerFrame = new FrameLayout(activity);
