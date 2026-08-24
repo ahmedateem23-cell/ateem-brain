@@ -1,0 +1,1875 @@
+name: Build ATEEM STORE APK — Premium Quiet Luxury Edition
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1. Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      # 2. Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+
+      # 3. Java
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+
+      # 4. Install dependencies
+      - name: Install npm dependencies
+        run: npm install
+
+
+      # 5. Add Android
+      - name: Add Android platform
+        run: npx cap add android
+
+
+      # 6. Generate app icons
+      - name: Generate app icons
+        run: |
+          npm install -D @capacitor/assets
+          mkdir -p resources
+          curl -L "https://i.ibb.co/fV73J1td/file-00000000792881f48bd0003f1a3bcdb0.png" -o resources/icon.png
+          npx capacitor-assets generate \
+            --android \
+            --iconBackgroundColor '#F5F1E8' \
+            --iconBackgroundColorDark '#F5F1E8'
+
+      # 7. Create Native Android shell (Premium Quiet Luxury Design)
+      - name: Create native Android shell
+        run: |
+
+          mkdir -p android/app/src/main/java/com/ateem/store
+          mkdir -p android/app/src/main/res/drawable
+
+          # ==========================================
+          # MainActivity.java — Premium Quiet Luxury
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/MainActivity.java << 'EOF'
+          package com.ateem.store;
+
+          import android.annotation.SuppressLint;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.ViewTreeObserver;
+          import android.view.Window;
+          import android.view.WindowManager;
+          import android.webkit.WebView;
+          import android.webkit.ValueCallback;
+          import android.widget.FrameLayout;
+
+          import com.getcapacitor.BridgeActivity;
+          import com.getcapacitor.BridgeWebViewClient;
+
+          import java.io.BufferedReader;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.nio.charset.StandardCharsets;
+
+          /*
+           * ATEEM STORE — Premium Quiet Luxury Edition
+           * هوية بصرية هادئة: عاجي دافئ + رمادي دافئ + زيتوني أنيق
+           * تصميم بسيط وراقٍ بدون تأثيرات مبالغ فيها
+           */
+
+          public class MainActivity
+              extends BridgeActivity
+              implements NativeNavigation.OnNavTargetListener {
+
+              private NativeNavigation nativeNavigation;
+              private NativeHomeScreen nativeHomeScreen;
+              private View nativeHomeScreenView;
+              private WebView webView;
+              private String ateemContextFlagsJs;
+              private String ateemTouchPolishJs;
+              private boolean pendingAutoOpenChat = false;
+              private boolean pendingRevealWebView = false;
+              private boolean webPageReady = false;
+
+              /* Quiet Luxury Palette */
+              private final int IVORY_BG    = Color.parseColor("#F5F1E8");
+              private final int CHARCOAL    = Color.parseColor("#3D3B36");
+
+              @SuppressLint("SetJavaScriptEnabled")
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  /* Full screen immersive */
+                  Window window = getWindow();
+                  window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+                  window.setStatusBarColor(Color.TRANSPARENT);
+                  window.setNavigationBarColor(IVORY_BG);
+                  hideSystemUI();
+
+                  /* WebView setup */
+                  webView = getBridge().getWebView();
+                  if (webView != null) {
+                      webView.setBackgroundColor(IVORY_BG);
+                      webView.getSettings().setJavaScriptEnabled(true);
+                      webView.setVisibility(View.GONE);
+
+                      ateemContextFlagsJs = loadAsset("inject/ateem_widget_inject.js");
+                      ateemTouchPolishJs  = loadAsset("inject/ateem_touch_polish.js");
+                      webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
+                          @Override
+                          public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                              super.onPageStarted(view, url, favicon);
+                              /* Must run BEFORE the page's own inline script reads
+                                 window.ATEEM_SHOULD_SHOW, or the site's real chat
+                                 widget hides itself permanently for that page. */
+                              injectAteemContextFlags(view);
+                          }
+
+                          @Override
+                          public void onPageFinished(WebView view, String url) {
+                              super.onPageFinished(view, url);
+                              webPageReady = true;
+                              injectAteemContextFlags(view);
+                              injectAteemTouchPolish(view);
+                              revealWebViewIfPending();
+                              if (pendingAutoOpenChat) {
+                                  pendingAutoOpenChat = false;
+                                  openAteemChatPanel();
+                              }
+                          }
+                      });
+                  }
+
+                  /* Bottom Navigation — Quiet Floating Bar */
+                  nativeNavigation = new NativeNavigation(this, webView);
+                  nativeNavigation.setOnNavTargetListener(this);
+                  nativeNavigation.attach();
+
+                  /* Native Home Screen — Premium Quiet */
+                  nativeHomeScreen = new NativeHomeScreen(
+                      this,
+                      this::onAteemChatButtonClick,
+                      this::onCategoryOrFooterLinkClick
+                  );
+                  nativeHomeScreenView = nativeHomeScreen.build();
+
+                  FrameLayout root = nativeNavigation.getRootContainer();
+                  if (root != null) {
+                      FrameLayout.LayoutParams homeParams = new FrameLayout.LayoutParams(
+                          FrameLayout.LayoutParams.MATCH_PARENT,
+                          FrameLayout.LayoutParams.MATCH_PARENT
+                      );
+                      root.addView(nativeHomeScreenView, homeParams);
+                      nativeHomeScreenView.bringToFront();
+
+                      View navView = nativeNavigation.getNavBarView();
+                      if (navView != null) navView.bringToFront();
+                  }
+
+                  linkWebViewInsets();
+              }
+
+              private void linkWebViewInsets() {
+                  final FrameLayout root = nativeNavigation.getRootContainer();
+                  if (root == null) return;
+
+                  root.getViewTreeObserver().addOnGlobalLayoutListener(
+                      new ViewTreeObserver.OnGlobalLayoutListener() {
+                          @Override
+                          public void onGlobalLayout() {
+                              View navView = nativeNavigation.getNavBarView();
+                              if (navView == null || navView.getHeight() == 0) return;
+                              root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+
+                              int bottomInset = navView.getHeight() + nativeNavigation.getNavBottomMargin();
+                              nativeNavigation.setWebViewInsets(0, bottomInset);
+
+                              if (nativeHomeScreenView != null) {
+                                  nativeHomeScreenView.setPadding(0, 0, 0, bottomInset);
+                              }
+                          }
+                      }
+                  );
+              }
+
+              public NativeNavigation getNativeNavigation() { return nativeNavigation; }
+
+              @Override
+              public void onHomeSelected() { showNativeHome(); }
+
+              @Override
+              public void onWebPathSelected(String path, int index) { showWebView(path); }
+
+              private void showNativeHome() {
+                  if (webView != null) webView.setVisibility(View.GONE);
+                  if (nativeHomeScreenView != null) nativeHomeScreenView.setVisibility(View.VISIBLE);
+              }
+
+              private void showWebView(String path) {
+                  pendingRevealWebView = true;
+                  nativeNavigation.loadWebUrl(path);
+              }
+
+              private void onAteemChatButtonClick() {
+                  if (webView == null) return;
+
+                  /* The WebView already starts loading the site silently in the
+                     background the moment the app opens (Capacitor loads it right
+                     away, behind the native home screen). So the bot button never
+                     needs to trigger a fresh navigation — that only added a delay
+                     and was the reason the first tap sometimes appeared to do
+                     nothing. We just wait for that in-flight load if it isn't
+                     done yet, and open the chat the instant it is. */
+                  if (!webPageReady) {
+                      pendingAutoOpenChat = true;
+                      pendingRevealWebView = true;
+                      return;
+                  }
+
+                  /* Page is already ready — reveal it as-is and open the chat
+                     panel immediately on top of the current page. */
+                  if (nativeHomeScreenView != null) nativeHomeScreenView.setVisibility(View.GONE);
+                  webView.setVisibility(View.VISIBLE);
+                  tryOpenAteemChatPanel(0);
+              }
+
+              /* Polls briefly for the site's real chat widget to be ready —
+                 either its openAteemPanel export or its header button —
+                 so a fast tap right after a page load still opens the
+                 in-app chat instead of silently doing nothing. */
+              private void tryOpenAteemChatPanel(final int attempt) {
+                  if (webView == null) return;
+                  webView.evaluateJavascript(
+                      "(function(){ return (typeof window.openAteemPanel === 'function') || !!document.getElementById('ateem-header-chat'); })();",
+                      new ValueCallback<String>() {
+                          @Override
+                          public void onReceiveValue(String value) {
+                              if ("true".equals(value)) {
+                                  openAteemChatPanel();
+                              } else if (attempt < 10) {
+                                  webView.postDelayed(
+                                      () -> tryOpenAteemChatPanel(attempt + 1), 150);
+                              }
+                          }
+                      }
+                  );
+              }
+
+              private void onCategoryOrFooterLinkClick(String path) {
+                  pendingRevealWebView = true;
+                  nativeNavigation.openWebPath(path, 1);
+              }
+
+              private void revealWebViewIfPending() {
+                  if (!pendingRevealWebView) return;
+                  pendingRevealWebView = false;
+                  if (nativeHomeScreenView != null) nativeHomeScreenView.setVisibility(View.GONE);
+                  if (webView != null) webView.setVisibility(View.VISIBLE);
+              }
+
+              private void openAteemChatPanel() {
+                  if (webView == null) return;
+                  webView.evaluateJavascript(
+                      "(function(){"
+                      + "  if (typeof window.openAteemPanel === 'function') { window.openAteemPanel(); return true; }"
+                      + "  var btn = document.getElementById('ateem-header-chat');"
+                      + "  if (btn) { btn.click(); return true; }"
+                      + "  return false;"
+                      + "})();",
+                      null
+                  );
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) hideSystemUI();
+              }
+
+              private void hideSystemUI() {
+                  View decorView = getWindow().getDecorView();
+                  decorView.setSystemUiVisibility(
+                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_FULLSCREEN
+                  );
+              }
+
+              private void injectAteemContextFlags(WebView view) {
+                  if (view == null || ateemContextFlagsJs == null || ateemContextFlagsJs.isEmpty()) return;
+                  view.evaluateJavascript(ateemContextFlagsJs, null);
+              }
+
+              private void injectAteemTouchPolish(WebView view) {
+                  if (view == null || ateemTouchPolishJs == null || ateemTouchPolishJs.isEmpty()) return;
+                  view.evaluateJavascript(ateemTouchPolishJs, null);
+              }
+
+              private String loadAsset(String path) {
+                  StringBuilder builder = new StringBuilder();
+                  try (
+                      InputStream is = getAssets().open(path);
+                      BufferedReader reader = new BufferedReader(
+                          new InputStreamReader(is, StandardCharsets.UTF_8)
+                      )
+                  ) {
+                      String line;
+                      while ((line = reader.readLine()) != null) {
+                          builder.append(line).append('\n');
+                      }
+                  } catch (IOException e) { e.printStackTrace(); }
+                  return builder.toString();
+              }
+          }
+          EOF
+
+          # ==========================================
+          # NativeHeader.java — Premium Minimal Header
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/NativeHeader.java << 'EOF'
+          package com.ateem.store;
+
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
+          import android.content.res.ColorStateList;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          import com.bumptech.glide.Glide;
+          import com.bumptech.glide.load.resource.bitmap.CircleCrop;
+
+          public class NativeHeader {
+
+              /* Bot avatar — used for the header chat button */
+              private static final String BOT_AVATAR_URL =
+                  "https://i.ibb.co/F4vhYp7Y/file-00000000b6f081f490aa2899443132bd.png";
+
+              public interface OnChatClickListener {
+                  void onChatClick();
+              }
+
+              private final Activity activity;
+              private final OnChatClickListener chatClickListener;
+              private View headerRow;
+
+              /* Quiet Luxury Palette — Ivory / Olive / Gold */
+              private final int IVORY_BG    = Color.parseColor("#F5F1E8");
+              private final int WARM_WHITE  = Color.parseColor("#FEFCF8");
+              private final int CHARCOAL    = Color.parseColor("#3D3B36");
+              private final int WARM_GRAY   = Color.parseColor("#8A8680");
+              private final int OLIVE       = Color.parseColor("#8A9A5B");
+              private final int OLIVE_DEEP  = Color.parseColor("#6B7A45");
+              private final int GOLD        = Color.parseColor("#B8936A");
+              private final int OLIVE_MUTED = Color.parseColor("#E8EBE0");
+              private final int DIVIDER     = Color.parseColor("#E8E4DC");
+
+              private Typeface logoTypeface;
+              private Typeface labelTypeface;
+
+              public NativeHeader(Activity activity, OnChatClickListener chatClickListener) {
+                  this.activity = activity;
+                  this.chatClickListener = chatClickListener;
+                  this.logoTypeface = Typeface.create("sans-serif-light", Typeface.BOLD);
+                  this.labelTypeface = Typeface.create("sans-serif-light", Typeface.NORMAL);
+              }
+
+              public View getHeaderView() { return headerRow; }
+
+              public void attachTo(FrameLayout container) {
+                  if (container == null) return;
+                  LinearLayout headerLayout = new LinearLayout(activity);
+                  headerLayout.setOrientation(LinearLayout.HORIZONTAL);
+                  headerLayout.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  headerLayout.setGravity(Gravity.CENTER_VERTICAL);
+                  headerLayout.setPadding(dp(20), dp(14), dp(20), dp(10));
+
+                  /* Subtle warm background */
+                  GradientDrawable bg = new GradientDrawable();
+                  bg.setColor(Color.argb(245, 254, 252, 248));
+                  headerLayout.setBackground(bg);
+
+                  View brand = buildBrand();
+                  LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                  headerLayout.addView(brand, brandParams);
+
+                  View actions = buildActions();
+                  headerLayout.addView(actions, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  headerRow = headerLayout;
+
+                  FrameLayout.LayoutParams headerParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
+                  container.addView(headerRow, headerParams);
+                  headerRow.bringToFront();
+              }
+
+              public View buildStandalone() {
+                  FrameLayout headerFrame = new FrameLayout(activity);
+                  headerRow = headerFrame;
+                  headerFrame.setPadding(dp(20), dp(12), dp(20), dp(10));
+
+                  /* Clean ivory background */
+                  GradientDrawable headerBg = new GradientDrawable();
+                  headerBg.setColor(IVORY_BG);
+                  headerFrame.setBackground(headerBg);
+
+                  /* Subtle bottom divider */
+                  View divider = new View(activity);
+                  GradientDrawable divBg = new GradientDrawable();
+                  divBg.setColor(DIVIDER);
+                  divider.setBackground(divBg);
+                  FrameLayout.LayoutParams divParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, dp(1), Gravity.BOTTOM);
+                  headerFrame.addView(divider, divParams);
+
+                  View actions = buildActions();
+                  FrameLayout.LayoutParams actionsParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                  headerFrame.addView(actions, actionsParams);
+
+                  View brand = buildBrand();
+                  FrameLayout.LayoutParams brandParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                  headerFrame.addView(brand, brandParams);
+
+                  return headerFrame;
+              }
+
+              private View buildBrand() {
+                  LinearLayout wrap = new LinearLayout(activity);
+                  wrap.setOrientation(LinearLayout.VERTICAL);
+                  wrap.setGravity(Gravity.RIGHT);
+
+                  TextView logo = new TextView(activity);
+                  logo.setText("ATEEM");
+                  logo.setTextSize(24);
+                  logo.setTypeface(logoTypeface);
+                  logo.setTextColor(CHARCOAL);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      logo.setLetterSpacing(0.2f);
+                  }
+                  wrap.addView(logo);
+
+                  /* Minimal subtitle */
+                  TextView sub = new TextView(activity);
+                  sub.setText("LUXURY");
+                  sub.setTextSize(7);
+                  sub.setTextColor(WARM_GRAY);
+                  sub.setTypeface(labelTypeface);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      sub.setLetterSpacing(0.35f);
+                  }
+                  LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  subParams.topMargin = dp(2);
+                  wrap.addView(sub, subParams);
+
+                  return wrap;
+              }
+
+              private View buildActions() {
+                  LinearLayout row = new LinearLayout(activity);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+                  /* SHOP label — quiet and refined */
+                  TextView shop = new TextView(activity);
+                  shop.setText("SHOP");
+                  shop.setTextSize(11);
+                  shop.setTextColor(WARM_GRAY);
+                  shop.setTypeface(labelTypeface);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      shop.setLetterSpacing(0.15f);
+                  }
+                  LinearLayout.LayoutParams shopParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  shopParams.leftMargin = dp(14);
+                  shop.setPadding(dp(6), dp(6), dp(6), dp(6));
+                  row.addView(shop, shopParams);
+
+                  shop.setOnClickListener(v -> {
+                      if (activity instanceof MainActivity) {
+                          ((MainActivity) activity).getNativeNavigation().navigateToPath("/shop");
+                      }
+                  });
+
+                  /* Chat Button — Bot Avatar on Deep Olive (matches website identity) */
+                  FrameLayout chatBtn = new FrameLayout(activity);
+                  GradientDrawable chatBg = new GradientDrawable();
+                  chatBg.setShape(GradientDrawable.OVAL);
+                  chatBg.setColor(OLIVE_DEEP);
+                  chatBg.setStroke(dp(1), Color.argb(38, 184, 147, 106)); // faint gold ring, like the web version
+
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      RippleDrawable ripple = new RippleDrawable(
+                          ColorStateList.valueOf(Color.argb(40, 184, 147, 106)), chatBg, null);
+                      chatBtn.setBackground(ripple);
+                  } else {
+                      chatBtn.setBackground(chatBg);
+                  }
+
+                  chatBtn.setElevation(dp(3));
+
+                  ImageView chatIcon = new ImageView(activity);
+                  chatIcon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  Glide.with(activity)
+                      .load(BOT_AVATAR_URL)
+                      .transform(new CircleCrop())
+                      .into(chatIcon);
+                  FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER);
+                  chatBtn.addView(chatIcon, iconParams);
+
+                  LinearLayout.LayoutParams chatBtnParams = new LinearLayout.LayoutParams(dp(46), dp(46));
+                  row.addView(chatBtn, chatBtnParams);
+
+                  chatBtn.setOnClickListener(v -> {
+                      if (chatClickListener != null) chatClickListener.onChatClick();
+                  });
+
+                  return row;
+              }
+
+              private int dp(int value) {
+                  float density = activity.getResources().getDisplayMetrics().density;
+                  return (int)(value * density + 0.5f);
+              }
+          }
+          EOF
+
+          # ==========================================
+          # NativeNavigation.java — Quiet Floating Bar
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/NativeNavigation.java << 'EOF'
+          package com.ateem.store;
+
+          import android.app.Activity;
+          import android.content.res.ColorStateList;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.ViewTreeObserver;
+          import android.webkit.WebView;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          import java.util.ArrayList;
+          import java.util.List;
+
+          public class NativeNavigation {
+
+              public interface OnNavTargetListener {
+                  void onHomeSelected();
+                  void onWebPathSelected(String path, int index);
+              }
+
+              private OnNavTargetListener navTargetListener;
+              public void setOnNavTargetListener(OnNavTargetListener listener) {
+                  this.navTargetListener = listener;
+              }
+
+              private final Activity activity;
+              private final WebView webView;
+              private FrameLayout rootContainer;
+              private FrameLayout navBar;
+              private final List<LinearLayout> items = new ArrayList<>();
+              private final List<ImageView> icons = new ArrayList<>();
+              private final List<TextView> labels = new ArrayList<>();
+
+              private final String[] paths = { "/", "/shop", "/shop/cart", "/my/account" };
+              private final int[] iconRes = {
+                  R.drawable.ic_nav_home, R.drawable.ic_nav_shop,
+                  R.drawable.ic_nav_cart, R.drawable.ic_nav_account
+              };
+              private final String[] labelText = { "الرئيسية", "المتجر", "السلة", "حسابي" };
+              private int activeIndex = 0;
+
+              /* Quiet Luxury Palette */
+              private final int BAR_BG        = Color.argb(252, 254, 252, 248);
+              private final int OLIVE         = Color.parseColor("#8A9A5B");
+              private final int OLIVE_MUTED   = Color.argb(20, 138, 154, 91);
+              private final int INACTIVE      = Color.parseColor("#B5B0A8");
+              private final int ACTIVE_BG     = Color.argb(18, 138, 154, 91);
+              private final int ACTIVE_BORDER = Color.argb(140, 138, 154, 91);
+              private final int DIVIDER       = Color.parseColor("#E8E4DC");
+
+              private final int NAV_BOTTOM_MARGIN_DP = 16;
+              private final Typeface labelTypeface = Typeface.create("sans-serif", Typeface.NORMAL);
+
+              public NativeNavigation(Activity activity, WebView webView) {
+                  this.activity = activity;
+                  this.webView = webView;
+              }
+
+              public FrameLayout getRootContainer() { return rootContainer; }
+              public View getNavBarView() { return navBar; }
+              public int getNavBottomMargin() { return dp(NAV_BOTTOM_MARGIN_DP); }
+
+              public void setWebViewInsets(int topInset, int bottomInset) {
+                  if (webView == null) return;
+                  ViewGroup.LayoutParams rawParams = webView.getLayoutParams();
+                  if (!(rawParams instanceof FrameLayout.LayoutParams)) return;
+                  FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) rawParams;
+                  params.topMargin = topInset;
+                  params.bottomMargin = bottomInset;
+                  webView.setLayoutParams(params);
+              }
+
+              public void attach() {
+                  if (webView == null) return;
+                  ViewGroup webViewParent = (ViewGroup) webView.getParent();
+                  if (webViewParent == null) return;
+
+                  rootContainer = new FrameLayout(activity);
+                  ViewGroup.LayoutParams rootParams = new ViewGroup.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+                  webViewParent.removeView(webView);
+                  webViewParent.addView(rootContainer, rootParams);
+
+                  FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+                  rootContainer.addView(webView, webParams);
+
+                  navBar = createNavigationBar();
+
+                  /* Quiet floating bar with soft shadow */
+                  FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(
+                      dpMax(), ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                  navParams.bottomMargin = dp(NAV_BOTTOM_MARGIN_DP);
+                  navParams.leftMargin = dp(12);
+                  navParams.rightMargin = dp(12);
+
+                  rootContainer.addView(navBar, navParams);
+                  navBar.bringToFront();
+
+                  navBar.getViewTreeObserver().addOnGlobalLayoutListener(
+                      new ViewTreeObserver.OnGlobalLayoutListener() {
+                          @Override
+                          public void onGlobalLayout() {
+                              navBar.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                              updateVisualState(activeIndex);
+                          }
+                      }
+                  );
+              }
+
+              private int dpMax() {
+                  int screenWidth = activity.getResources().getDisplayMetrics().widthPixels;
+                  int eightyEightPercent = (int)(screenWidth * 0.88f);
+                  int maxWidthPx = dp(380);
+                  return Math.min(eightyEightPercent, maxWidthPx);
+              }
+
+              private FrameLayout createNavigationBar() {
+                  FrameLayout bar = new FrameLayout(activity);
+
+                  /* Clean warm white background */
+                  GradientDrawable barBg = new GradientDrawable();
+                  barBg.setColor(BAR_BG);
+                  barBg.setCornerRadius(dp(21));
+                  bar.setBackground(barBg);
+
+                  /* Soft shadow */
+                  bar.setElevation(dp(12));
+
+                  /* Subtle olive border */
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      bar.setClipToOutline(true);
+                      bar.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                          @Override
+                          public void getOutline(View v, android.graphics.Outline outline) {
+                              outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(21));
+                          }
+                      });
+                  }
+
+                  bar.setClipToPadding(false);
+                  bar.setClipChildren(false);
+
+                  LinearLayout row = new LinearLayout(activity);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setPadding(dp(8), dp(5), dp(8), dp(7));
+                  row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+                  bar.addView(row, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  for (int i = 0; i < paths.length; i++) {
+                      final int index = i;
+                      LinearLayout item = createItem(iconRes[i], labelText[i]);
+                      LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
+                          0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                      row.addView(item, itemParams);
+                      items.add(item);
+                      item.setOnClickListener(v -> onItemClick(index));
+                  }
+
+                  return bar;
+              }
+
+              private LinearLayout createItem(int iconResId, String label) {
+                  LinearLayout item = new LinearLayout(activity);
+                  item.setOrientation(LinearLayout.VERTICAL);
+                  item.setGravity(Gravity.CENTER);
+                  item.setClickable(true);
+                  item.setPadding(dp(11), dp(4), dp(11), dp(4));
+
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                      item.setForeground(new RippleDrawable(
+                          ColorStateList.valueOf(Color.argb(16, 138, 154, 91)), null, null));
+                  }
+
+                  ImageView icon = new ImageView(activity);
+                  icon.setImageResource(iconResId);
+                  icon.setColorFilter(INACTIVE);
+                  LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(19), dp(19));
+                  item.addView(icon, iconParams);
+                  icons.add(icon);
+
+                  TextView labelView = new TextView(activity);
+                  labelView.setText(label);
+                  labelView.setTextSize(9f);
+                  labelView.setTypeface(labelTypeface);
+                  labelView.setTextColor(INACTIVE);
+                  labelView.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  labelParams.topMargin = dp(2);
+                  item.addView(labelView, labelParams);
+                  labels.add(labelView);
+
+                  return item;
+              }
+
+              private void onItemClick(int index) {
+                  if (index == activeIndex) {
+                      if (index == 0 && navTargetListener != null) navTargetListener.onHomeSelected();
+                      return;
+                  }
+                  setActiveIndex(index);
+                  dispatchTarget(index);
+              }
+
+              private void dispatchTarget(int index) {
+                  if (navTargetListener == null) {
+                      navigate(paths[index]);
+                      return;
+                  }
+                  if (index == 0) navTargetListener.onHomeSelected();
+                  else navTargetListener.onWebPathSelected(paths[index], index);
+              }
+
+              private void setActiveIndex(int index) {
+                  activeIndex = index;
+                  updateVisualState(index);
+              }
+
+              private void updateVisualState(int activeIdx) {
+                  for (int i = 0; i < items.size(); i++) {
+                      boolean isActive = (i == activeIdx);
+                      ImageView icon = icons.get(i);
+                      TextView label = labels.get(i);
+                      LinearLayout item = items.get(i);
+
+                      int targetColor = isActive ? OLIVE : INACTIVE;
+                      icon.setColorFilter(targetColor);
+                      label.setTextColor(targetColor);
+
+                      if (isActive) {
+                          /* Quiet active state */
+                          GradientDrawable activeBg = new GradientDrawable();
+                          activeBg.setColor(ACTIVE_BG);
+                          activeBg.setStroke(dp(1), ACTIVE_BORDER);
+                          activeBg.setCornerRadius(dp(12));
+                          item.setBackground(activeBg);
+                          item.setElevation(dp(2));
+                      } else {
+                          item.setBackground(null);
+                          item.setElevation(0);
+                      }
+                  }
+              }
+
+              public void syncActiveFromUrl(String url) {
+                  if (url == null) return;
+                  String path;
+                  try {
+                      android.net.Uri uri = android.net.Uri.parse(url);
+                      path = uri.getPath();
+                      if (path == null) path = "/";
+                  } catch (Exception e) { path = "/"; }
+
+                  if (path.length() > 1 && path.endsWith("/"))
+                      path = path.substring(0, path.length() - 1);
+
+                  int bestIndex = 0, bestLength = -1;
+                  for (int i = 0; i < paths.length; i++) {
+                      String p = paths[i];
+                      boolean matches = path.equals(p) ||
+                          (!p.equals("/") && path.startsWith(p + "/")) ||
+                          (!p.equals("/") && path.equals(p));
+                      if (matches && p.length() > bestLength) {
+                          bestIndex = i; bestLength = p.length();
+                      }
+                  }
+                  if (bestIndex != activeIndex) setActiveIndex(bestIndex);
+                  else updateVisualState(activeIndex);
+              }
+
+              public void navigateToPath(String path) {
+                  int index = indexForPath(path);
+                  if (index != activeIndex) setActiveIndex(index);
+                  dispatchTarget(index);
+              }
+
+              public void openWebPath(String fullPath, int highlightIndex) {
+                  if (highlightIndex != activeIndex) setActiveIndex(highlightIndex);
+                  if (navTargetListener != null)
+                      navTargetListener.onWebPathSelected(fullPath, highlightIndex);
+                  else navigate(fullPath);
+              }
+
+              private int indexForPath(String path) {
+                  for (int i = 0; i < paths.length; i++) if (paths[i].equals(path)) return i;
+                  return activeIndex;
+              }
+
+              public boolean loadWebUrl(String path) { return navigate(path); }
+
+              private boolean navigate(String path) {
+                  if (webView == null) return false;
+                  String current = webView.getUrl();
+                  String base = "https://www.ateem-store.com";
+                  String target = base + path;
+                  if (current != null && current.equals(target)) return false;
+                  webView.loadUrl(target);
+                  return true;
+              }
+
+              private int dp(int value) {
+                  float density = activity.getResources().getDisplayMetrics().density;
+                  return (int)(value * density + 0.5f);
+              }
+          }
+          EOF
+
+          # ==========================================
+          # NativeHomeScreen.java — Premium Quiet Cinema
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/NativeHomeScreen.java << 'EOF'
+          package com.ateem.store;
+
+          import android.app.Activity;
+          import android.content.Context;
+          import android.content.res.ColorStateList;
+          import android.graphics.Color;
+          import android.graphics.Outline;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.ViewOutlineProvider;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          import androidx.core.widget.NestedScrollView;
+
+          import com.bumptech.glide.Glide;
+          import com.bumptech.glide.load.engine.DiskCacheStrategy;
+
+          import java.util.ArrayList;
+          import java.util.List;
+
+          /*
+           * ATEEM STORE — Premium Quiet Luxury Home Screen
+           * تصميم هادئ وراقٍ: خلفية عاجية + بانر أنيق بسيط
+           * + بطاقات ناعمة بدون تأثيرات مبالغ فيها
+           */
+
+          public class NativeHomeScreen {
+
+              public interface OnChatClickListener { void onChatClick(); }
+              public interface OnCategoryClickListener { void onCategoryClick(String path); }
+
+              private final Activity activity;
+              private final OnChatClickListener chatClickListener;
+              private final OnCategoryClickListener categoryClickListener;
+              private final Handler bannerHandler = new Handler(Looper.getMainLooper());
+              private Runnable bannerRunnable;
+              private int currentSlide = 0;
+              private ImageView bannerImage;
+              private TextView bannerBrandLabel, bannerTitle, bannerDesc;
+              private LinearLayout dotsRow;
+              private final List<View> dots = new ArrayList<>();
+
+              /* Quiet Luxury Palette */
+              private final int IVORY_BG     = Color.parseColor("#F5F1E8");
+              private final int WARM_WHITE   = Color.parseColor("#FEFCF8");
+              private final int CREAM        = Color.parseColor("#F0EDE6");
+              private final int CHARCOAL     = Color.parseColor("#3D3B36");
+              private final int WARM_GRAY    = Color.parseColor("#8A8680");
+              private final int SOFT_GRAY    = Color.parseColor("#B5B0A8");
+              private final int OLIVE        = Color.parseColor("#8A9A5B");
+              private final int OLIVE_LIGHT  = Color.parseColor("#A8B88A");
+              private final int OLIVE_MUTED  = Color.parseColor("#E8EBE0");
+              private final int WHITE        = Color.parseColor("#FFFFFF");
+              private final int DIVIDER      = Color.parseColor("#E8E4DC");
+
+              private final Typeface serifBold  = Typeface.create("serif", Typeface.BOLD);
+              private final Typeface sansLight  = Typeface.create("sans-serif-light", Typeface.NORMAL);
+              private final Typeface sansMedium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+              private final Typeface sansBold   = Typeface.create("sans-serif", Typeface.BOLD);
+
+              private static class Slide {
+                  String brand, title, desc, button, imageUrl;
+                  Slide(String brand, String title, String desc, String button, String imageUrl) {
+                      this.brand = brand; this.title = title; this.desc = desc;
+                      this.button = button; this.imageUrl = imageUrl;
+                  }
+              }
+
+              private final Slide[] slides = new Slide[] {
+                  new Slide("urban street", "كن جديداً كل يوم",
+                      "ستريتوير، سنيكرز وأكثر من مجرد ملابس", "تسوق الآن",
+                      "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=900&q=80"),
+                  new Slide("luxury collection", "كن الأفضل لتفوز",
+                      "أناقة رجالية فاخرة بأسلوب عصري", "اكتشف المزيد",
+                      "https://images.unsplash.com/photo-1507680434567-5739c80be1ac?w=900&q=80"),
+                  new Slide("new season", "أسلوبك هويتك",
+                      "تشكيلة خريف شتاء 2026", "اطلب الآن",
+                      "https://images.unsplash.com/photo-1516826957135-700dedea698c?w=900&q=80")
+              };
+
+              private static class Category {
+                  String label, imageUrl, path;
+                  Category(String label, String imageUrl, String path) {
+                      this.label = label; this.imageUrl = imageUrl; this.path = path;
+                  }
+              }
+
+              private final Category[] categories = new Category[] {
+                  new Category("SHIRTS", "https://i.ibb.co/39GtkmxV/file-00000000ffb0722faa08b8d847cf7141.png", "/shop/category/shirts-9"),
+                  new Category("FOOTWEAR", "https://i.ibb.co/bMKftkK7/file-00000000793c71f686539d36b13ce7a9.png", "/shop/category/footwear-17"),
+                  new Category("FORMAL WEAR", "https://i.ibb.co/W4wJRspZ/file-00000000923c71f5bf19575efbaf07e5.png", "/shop/category/formal-wear-18"),
+                  new Category("ACCESSORIES", "https://i.ibb.co/gLg05tLH/file-0000000066e471f689fc2a0850067e92.png", "/shop/category/accessories-19")
+              };
+
+              public NativeHomeScreen(Activity activity, OnChatClickListener chatClickListener,
+                                      OnCategoryClickListener categoryClickListener) {
+                  this.activity = activity;
+                  this.chatClickListener = chatClickListener;
+                  this.categoryClickListener = categoryClickListener;
+              }
+
+              public View build() {
+                  NestedScrollView scroll = new NestedScrollView(activity);
+                  scroll.setFillViewport(true);
+                  scroll.setBackgroundColor(IVORY_BG);
+
+                  LinearLayout column = new LinearLayout(activity);
+                  column.setOrientation(LinearLayout.VERTICAL);
+                  column.setBackgroundColor(IVORY_BG);
+                  scroll.addView(column, new ViewGroup.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* 1) Premium Minimal Header */
+                  NativeHeader header = new NativeHeader(activity,
+                      () -> { if (chatClickListener != null) chatClickListener.onChatClick(); });
+                  column.addView(header.buildStandalone(), new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* 2) Quiet Elegant Banner */
+                  column.addView(buildBanner(), bannerContainerParams());
+
+                  /* 3) Collections Title + Quiet Grid */
+                  column.addView(buildCollectionsHeader());
+                  column.addView(buildCollectionsGrid());
+
+                  /* 4) Quiet Footer */
+                  column.addView(buildFooter());
+
+                  return scroll;
+              }
+
+              private LinearLayout.LayoutParams bannerContainerParams() {
+                  LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  params.leftMargin = dp(16); params.rightMargin = dp(16); params.topMargin = dp(12);
+                  return params;
+              }
+
+              /* ============== QUIET ELEGANT BANNER ============== */
+              private View buildBanner() {
+                  FrameLayout wrap = new FrameLayout(activity);
+                  wrap.setClipChildren(false);
+                  wrap.setClipToPadding(false);
+
+                  /* Main banner card — clean and quiet */
+                  AspectFrameLayout frame = new AspectFrameLayout(activity, 4f / 3f);
+                  roundCorners(frame, dp(20));
+                  frame.setBackgroundColor(CREAM);
+                  frame.setElevation(dp(3));
+
+                  bannerImage = new ImageView(activity);
+                  bannerImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  frame.addView(bannerImage, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Soft bottom scrim for text — concentrated behind the text zone only */
+                  View overlay = new View(activity);
+                  GradientDrawable overlayBg = new GradientDrawable(
+                      GradientDrawable.Orientation.TOP_BOTTOM,
+                      new int[] {
+                          Color.TRANSPARENT,
+                          Color.TRANSPARENT,
+                          Color.argb(60, 20, 18, 15),
+                          Color.argb(185, 20, 18, 15)
+                      });
+                  overlayBg.setGradientType(GradientDrawable.LINEAR_GRADIENT);
+                  overlay.setBackground(overlayBg);
+                  frame.addView(overlay, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Subtle border */
+                  View borderView = new View(activity);
+                  GradientDrawable borderBg = new GradientDrawable();
+                  borderBg.setColor(Color.TRANSPARENT);
+                  borderBg.setStroke(dp(1), Color.argb(100, 200, 196, 186));
+                  borderBg.setCornerRadius(dp(20));
+                  borderView.setBackground(borderBg);
+                  frame.addView(borderView, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Text column */
+                  LinearLayout textCol = new LinearLayout(activity);
+                  textCol.setOrientation(LinearLayout.VERTICAL);
+                  textCol.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  textCol.setPadding(dp(22), dp(14), dp(22), dp(22));
+
+                  bannerBrandLabel = new TextView(activity);
+                  bannerBrandLabel.setTextSize(9);
+                  bannerBrandLabel.setTextColor(Color.argb(180, 240, 236, 228));
+                  bannerBrandLabel.setTypeface(sansMedium);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      bannerBrandLabel.setLetterSpacing(0.2f);
+                  bannerBrandLabel.setShadowLayer(dp(3), 0, dp(1), Color.argb(90, 0, 0, 0));
+                  textCol.addView(bannerBrandLabel);
+
+                  bannerTitle = new TextView(activity);
+                  bannerTitle.setTextSize(24);
+                  bannerTitle.setTextColor(WHITE);
+                  bannerTitle.setTypeface(serifBold);
+                  bannerTitle.setLineSpacing(0f, 1.05f);
+                  bannerTitle.setShadowLayer(dp(6), 0, dp(2), Color.argb(110, 0, 0, 0));
+                  LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  titleParams.topMargin = dp(6);
+                  textCol.addView(bannerTitle, titleParams);
+
+                  bannerDesc = new TextView(activity);
+                  bannerDesc.setTextSize(12);
+                  bannerDesc.setTextColor(Color.argb(180, 255, 255, 255));
+                  bannerDesc.setLineSpacing(dp(2), 1f);
+                  bannerDesc.setShadowLayer(dp(4), 0, dp(1), Color.argb(90, 0, 0, 0));
+                  LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  descParams.topMargin = dp(5);
+                  descParams.bottomMargin = dp(14);
+                  textCol.addView(bannerDesc, descParams);
+
+                  /* Quiet CTA Button — Olive pill */
+                  TextView button = new TextView(activity);
+                  button.setText("تسوق الآن");
+                  button.setTextSize(10);
+                  button.setTextColor(WHITE);
+                  button.setTypeface(sansMedium);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      button.setLetterSpacing(0.06f);
+                  GradientDrawable btnBg = new GradientDrawable();
+                  btnBg.setColor(OLIVE);
+                  btnBg.setCornerRadius(dp(20));
+                  button.setBackground(btnBg);
+                  button.setPadding(dp(18), dp(8), dp(18), dp(8));
+                  LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  textCol.addView(button, btnParams);
+
+                  FrameLayout.LayoutParams textColParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+                  frame.addView(textCol, textColParams);
+
+                  /* Dots indicator */
+                  dotsRow = new LinearLayout(activity);
+                  dotsRow.setOrientation(LinearLayout.HORIZONTAL);
+                  dotsRow.setGravity(Gravity.CENTER_HORIZONTAL);
+                  for (int i = 0; i < slides.length; i++) {
+                      View dot = new View(activity);
+                      GradientDrawable dotBg = new GradientDrawable();
+                      dotBg.setShape(GradientDrawable.OVAL);
+                      dotBg.setColor(Color.argb(70, 255, 255, 255));
+                      dot.setBackground(dotBg);
+                      LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(5), dp(5));
+                      dotParams.leftMargin = dp(3); dotParams.rightMargin = dp(3);
+                      dotsRow.addView(dot, dotParams);
+                      dots.add(dot);
+                      final int index = i;
+                      dot.setOnClickListener(v -> goToSlide(index));
+                  }
+                  LinearLayout.LayoutParams dotsParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  dotsParams.topMargin = dp(12);
+                  dotsParams.gravity = Gravity.CENTER_HORIZONTAL;
+                  textCol.addView(dotsRow, dotsParams);
+
+                  wrap.addView(frame, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  applySlide(0);
+                  startAutoSlide();
+
+                  return wrap;
+              }
+
+              private void applySlide(int index) {
+                  Slide slide = slides[index];
+                  bannerBrandLabel.setText(slide.brand.toUpperCase());
+                  bannerTitle.setText(slide.title);
+                  bannerDesc.setText(slide.desc);
+                  Glide.with(activity).load(slide.imageUrl)
+                      .diskCacheStrategy(DiskCacheStrategy.ALL).centerCrop().into(bannerImage);
+
+                  for (int i = 0; i < dots.size(); i++) {
+                      View dot = dots.get(i);
+                      GradientDrawable dotBg = new GradientDrawable();
+                      dotBg.setShape(GradientDrawable.OVAL);
+                      boolean isActive = (i == index);
+                      dotBg.setColor(isActive ? OLIVE : Color.argb(50, 255, 255, 255));
+                      dot.setBackground(dotBg);
+                      ViewGroup.LayoutParams lp = dot.getLayoutParams();
+                      if (lp instanceof LinearLayout.LayoutParams) {
+                          ((LinearLayout.LayoutParams) lp).width = isActive ? dp(14) : dp(5);
+                          dot.setLayoutParams(lp);
+                      }
+                  }
+              }
+
+              private void goToSlide(int index) {
+                  currentSlide = index;
+                  applySlide(currentSlide);
+                  restartAutoSlide();
+              }
+
+              private void startAutoSlide() {
+                  bannerRunnable = () -> {
+                      currentSlide = (currentSlide + 1) % slides.length;
+                      applySlide(currentSlide);
+                      bannerHandler.postDelayed(bannerRunnable, 5000);
+                  };
+                  bannerHandler.postDelayed(bannerRunnable, 5000);
+              }
+
+              private void restartAutoSlide() {
+                  if (bannerRunnable != null) bannerHandler.removeCallbacks(bannerRunnable);
+                  startAutoSlide();
+              }
+
+              /* ============== QUIET COLLECTIONS ============== */
+              private View buildCollectionsHeader() {
+                  LinearLayout row = new LinearLayout(activity);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  rowParams.topMargin = dp(26); rowParams.bottomMargin = dp(14);
+                  rowParams.leftMargin = dp(24); rowParams.rightMargin = dp(24);
+
+                  /* Quiet decorative line */
+                  View lineLeft = new View(activity);
+                  GradientDrawable lineLeftBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.TRANSPARENT, Color.argb(70, 180, 178, 170) });
+                  row.addView(lineLeft, new LinearLayout.LayoutParams(0, dp(1), 1f));
+
+                  /* Olive dot accent */
+                  View dot = new View(activity);
+                  GradientDrawable dotBg = new GradientDrawable();
+                  dotBg.setShape(GradientDrawable.OVAL);
+                  dotBg.setColor(OLIVE);
+                  dot.setBackground(dotBg);
+                  LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(4), dp(4));
+                  dotParams.rightMargin = dp(8);
+                  row.addView(dot, dotParams);
+
+                  TextView title = new TextView(activity);
+                  title.setText("OUR COLLECTIONS");
+                  title.setTextSize(11);
+                  title.setTextColor(CHARCOAL);
+                  title.setTypeface(serifBold);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      title.setLetterSpacing(0.2f);
+                  LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  titleParams.leftMargin = dp(8); titleParams.rightMargin = dp(8);
+                  row.addView(title, titleParams);
+
+                  /* Olive dot accent */
+                  View dot2 = new View(activity);
+                  dot2.setBackground(dotBg);
+                  LinearLayout.LayoutParams dot2Params = new LinearLayout.LayoutParams(dp(4), dp(4));
+                  dot2Params.leftMargin = dp(8);
+                  row.addView(dot2, dot2Params);
+
+                  View lineRight = new View(activity);
+                  GradientDrawable lineRightBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.argb(70, 180, 178, 170), Color.TRANSPARENT });
+                  lineRight.setBackground(lineRightBg);
+                  row.addView(lineRight, new LinearLayout.LayoutParams(0, dp(1), 1f));
+
+                  FrameLayout wrap = new FrameLayout(activity);
+                  wrap.addView(row, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  wrap.setLayoutParams(rowParams);
+                  return wrap;
+              }
+
+              private View buildCollectionsGrid() {
+                  LinearLayout grid = new LinearLayout(activity);
+                  grid.setOrientation(LinearLayout.VERTICAL);
+                  LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  gridParams.leftMargin = dp(16); gridParams.rightMargin = dp(16);
+                  grid.setLayoutParams(gridParams);
+                  grid.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  grid.setClipChildren(false);
+                  grid.setClipToPadding(false);
+
+                  /* Row 1: FOOTWEAR | SHIRTS */
+                  LinearLayout row1 = new LinearLayout(activity);
+                  row1.setOrientation(LinearLayout.HORIZONTAL);
+                  row1.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  row1.setClipChildren(false);
+                  row1.setClipToPadding(false);
+                  row1.setPadding(0, dp(7), 0, dp(7));
+                  addCategoryCard(row1, categories[1], -8f);
+                  addCategoryCard(row1, categories[0], 0f);
+                  grid.addView(row1, new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* Row 2: ACCESSORIES | FORMAL WEAR */
+                  LinearLayout row2 = new LinearLayout(activity);
+                  row2.setOrientation(LinearLayout.HORIZONTAL);
+                  row2.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  row2.setClipChildren(false);
+                  row2.setClipToPadding(false);
+                  row2.setPadding(0, dp(7), 0, dp(7));
+                  LinearLayout.LayoutParams row2Params = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  row2Params.topMargin = dp(8);
+                  addCategoryCard(row2, categories[3], 8f);
+                  addCategoryCard(row2, categories[2], 0f);
+                  grid.addView(row2, row2Params);
+
+                  return grid;
+              }
+
+              private void addCategoryCard(LinearLayout parentRow, Category category, float verticalOffsetDp) {
+                  /* Quiet card — warm white with soft shadow */
+                  FrameLayout card = new FrameLayout(activity);
+                  AspectFrameLayout aspectCard = new AspectFrameLayout(activity, 3f / 4f);
+                  roundCorners(aspectCard, dp(18));
+
+                  /* Warm white background */
+                  GradientDrawable cardBg = new GradientDrawable();
+                  cardBg.setColor(WARM_WHITE);
+                  cardBg.setCornerRadius(dp(18));
+                  aspectCard.setBackground(cardBg);
+
+                  /* Subtle border */
+                  View border = new View(activity);
+                  GradientDrawable borderBg = new GradientDrawable();
+                  borderBg.setColor(Color.TRANSPARENT);
+                  borderBg.setStroke(dp(1), Color.argb(30, 180, 178, 170));
+                  borderBg.setCornerRadius(dp(18));
+                  border.setBackground(borderBg);
+                  aspectCard.addView(border, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  ImageView img = new ImageView(activity);
+                  img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  Glide.with(activity).load(category.imageUrl)
+                      .diskCacheStrategy(DiskCacheStrategy.ALL).centerCrop().into(img);
+                  aspectCard.addView(img, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Soft dark overlay for text readability */
+                  View overlay = new View(activity);
+                  GradientDrawable overlayBg = new GradientDrawable(
+                      GradientDrawable.Orientation.BOTTOM_TOP,
+                      new int[] { Color.argb(180, 45, 43, 38), Color.argb(10, 45, 43, 38) });
+                  aspectCard.addView(overlay, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Label column */
+                  LinearLayout labelCol = new LinearLayout(activity);
+                  labelCol.setOrientation(LinearLayout.VERTICAL);
+                  labelCol.setGravity(Gravity.CENTER_HORIZONTAL);
+                  labelCol.setPadding(dp(10), 0, dp(10), dp(16));
+
+                  TextView label = new TextView(activity);
+                  label.setText(category.label);
+                  label.setTextSize(11);
+                  label.setTextColor(WHITE);
+                  label.setTypeface(sansBold);
+                  label.setGravity(Gravity.CENTER);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      label.setLetterSpacing(0.12f);
+                  labelCol.addView(label);
+
+                  /* Olive underline */
+                  View underline = new View(activity);
+                  GradientDrawable underlineBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.TRANSPARENT, OLIVE, Color.TRANSPARENT });
+                  underline.setBackground(underlineBg);
+                  LinearLayout.LayoutParams underlineParams = new LinearLayout.LayoutParams(dp(24), dp(2));
+                  underlineParams.topMargin = dp(6);
+                  underlineParams.gravity = Gravity.CENTER_HORIZONTAL;
+                  labelCol.addView(underline, underlineParams);
+
+                  aspectCard.addView(labelCol, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+
+                  card.addView(aspectCard, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* Quiet touch effect */
+                  card.setClickable(true);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                      card.setForeground(new RippleDrawable(
+                          ColorStateList.valueOf(Color.argb(16, 138, 154, 91)), null, null));
+                  }
+
+                  card.setOnTouchListener((v, event) -> {
+                      switch (event.getActionMasked()) {
+                          case android.view.MotionEvent.ACTION_DOWN:
+                              v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(100).start();
+                              break;
+                          case android.view.MotionEvent.ACTION_UP:
+                          case android.view.MotionEvent.ACTION_CANCEL:
+                              v.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
+                              break;
+                      }
+                      return false;
+                  });
+
+                  card.setOnClickListener(v -> {
+                      if (categoryClickListener != null)
+                          categoryClickListener.onCategoryClick(category.path);
+                  });
+
+                  /* Soft elevation */
+                  card.setElevation(dp(6));
+
+                  LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                      0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                  if (parentRow.getChildCount() == 1) cardParams.rightMargin = dp(12);
+                  parentRow.addView(card, cardParams);
+
+                  if (verticalOffsetDp != 0f)
+                      card.setTranslationY(dp((int) verticalOffsetDp));
+              }
+
+              /* ============== QUIET FOOTER ============== */
+              private View buildFooter() {
+                  LinearLayout wrap = new LinearLayout(activity);
+                  wrap.setOrientation(LinearLayout.VERTICAL);
+                  wrap.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams wrapParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  wrapParams.topMargin = dp(36); wrapParams.bottomMargin = dp(28);
+                  wrap.setLayoutParams(wrapParams);
+
+                  /* Subtle divider */
+                  View sep = new View(activity);
+                  GradientDrawable sepBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.TRANSPARENT, DIVIDER, Color.TRANSPARENT });
+                  sep.setBackground(sepBg);
+                  LinearLayout.LayoutParams sepParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+                  sepParams.leftMargin = dp(40); sepParams.rightMargin = dp(40);
+                  sepParams.bottomMargin = dp(18);
+                  wrap.addView(sep, sepParams);
+
+                  /* Links row */
+                  LinearLayout linksRow = new LinearLayout(activity);
+                  linksRow.setOrientation(LinearLayout.HORIZONTAL);
+                  linksRow.setGravity(Gravity.CENTER);
+                  linksRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+                  addFooterLink(linksRow, "تواصل معنا", "/twsl-m-n");
+                  addFooterDot(linksRow);
+                  addFooterLink(linksRow, "الخصوصية", "/sys-lkhswsy");
+                  addFooterDot(linksRow);
+                  addFooterLink(linksRow, "الشروط", "/lshrwt-wlhkm");
+                  wrap.addView(linksRow);
+
+                  /* Brand mark */
+                  TextView brand = new TextView(activity);
+                  brand.setText("ATEEM");
+                  brand.setTextSize(10);
+                  brand.setTextColor(WARM_GRAY);
+                  brand.setTypeface(serifBold);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      brand.setLetterSpacing(0.25f);
+                  LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  brandParams.topMargin = dp(12);
+                  wrap.addView(brand, brandParams);
+
+                  /* Copyright */
+                  TextView copy = new TextView(activity);
+                  copy.setText("© 2026 ATEEM Luxury Store. All rights reserved.");
+                  copy.setTextSize(8);
+                  copy.setTextColor(SOFT_GRAY);
+                  LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  copyParams.topMargin = dp(4);
+                  wrap.addView(copy, copyParams);
+
+                  return wrap;
+              }
+
+              private void addFooterLink(LinearLayout parent, String text, String path) {
+                  TextView link = new TextView(activity);
+                  link.setText(text);
+                  link.setTextSize(11);
+                  link.setTextColor(WARM_GRAY);
+                  link.setPadding(dp(8), dp(4), dp(8), dp(4));
+                  link.setOnClickListener(v -> {
+                      if (categoryClickListener != null)
+                          categoryClickListener.onCategoryClick(path);
+                  });
+                  parent.addView(link);
+              }
+
+              private void addFooterDot(LinearLayout parent) {
+                  View dot = new View(activity);
+                  GradientDrawable dotBg = new GradientDrawable();
+                  dotBg.setShape(GradientDrawable.OVAL);
+                  dotBg.setColor(OLIVE);
+                  dot.setBackground(dotBg);
+                  LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(3), dp(3));
+                  params.leftMargin = dp(5); params.rightMargin = dp(5);
+                  params.gravity = Gravity.CENTER_VERTICAL;
+                  parent.addView(dot, params);
+              }
+
+              /* ============== HELPERS ============== */
+              private void roundCorners(View view, int radiusPx) {
+                  view.setClipToOutline(true);
+                  view.setOutlineProvider(new ViewOutlineProvider() {
+                      @Override
+                      public void getOutline(View v, Outline outline) {
+                          outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radiusPx);
+                      }
+                  });
+              }
+
+              private int dp(int value) {
+                  float density = activity.getResources().getDisplayMetrics().density;
+                  return (int)(value * density + 0.5f);
+              }
+
+              private static class AspectFrameLayout extends FrameLayout {
+                  private final float ratio;
+                  AspectFrameLayout(Context context, float ratio) {
+                      super(context);
+                      this.ratio = ratio;
+                  }
+                  @Override
+                  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                      int width = MeasureSpec.getSize(widthMeasureSpec);
+                      int height = (int)(width / ratio);
+                      super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+                  }
+              }
+          }
+          EOF
+
+          # ==========================================
+          # ic_nav_home.xml — Quiet Warm Gray Stroke
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_home.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M3,10.5L12,3L21,10.5V20C21,20.55 20.55,21 20,21H15V14H9V21H4C3.45,21 3,20.55 3,20V10.5Z"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_nav_shop.xml
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_shop.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M3.5,9L4.3,4.2C4.4,3.5 5,3 5.7,3H18.3C19,3 19.6,3.5 19.7,4.2L20.5,9"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M3.5,9C3.5,10.4 4.6,11.5 6,11.5C7.4,11.5 8.5,10.4 8.5,9C8.5,10.4 9.6,11.5 11,11.5C12.4,11.5 13.5,10.4 13.5,9C13.5,10.4 14.6,11.5 16,11.5C17.4,11.5 18.5,10.4 18.5,9C18.5,10.4 19.6,11.5 21,11.5"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M5,11.5V19.5C5,20.05 5.45,20.5 6,20.5H18C18.55,20.5 19,20.05 19,19.5V11.5"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M9.5,20.5V15.5C9.5,14.95 9.95,14.5 10.5,14.5H13.5C14.05,14.5 14.5,14.95 14.5,15.5V20.5"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_nav_cart.xml
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_cart.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M3,4H5.2L6.1,6H20C20.7,6 21.2,6.7 21,7.4L19.2,14.4C19,15.1 18.4,15.6 17.7,15.6H8.3C7.6,15.6 7,15.1 6.8,14.4L4.6,6"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M8.5,20 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0"
+                  android:fillColor="#8A8680" />
+              <path
+                  android:pathData="M15.5,20 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0"
+                  android:fillColor="#8A8680" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_nav_account.xml
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_account.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M20,21C20,17.7 16.42,15 12,15C7.58,15 4,17.7 4,21"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M8,8 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_header_chat.xml — Quiet Olive Chat
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_header_chat.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M21,11.5C21.0034,12.8199 20.6951,14.1219 20.1,15.3C19.3944,16.7118 18.3098,17.8992 16.9674,18.7293C15.6251,19.5594 14.0782,19.9994 12.5,20C11.1801,20.0035 9.87812,19.6951 8.7,19.1L3,21L4.9,15.3C4.30493,14.1219 3.99656,12.8199 4,11.5C4.00061,9.92179 4.44061,8.37488 5.27072,7.03258C6.10083,5.69028 7.28825,4.6056 8.7,3.90003C9.87812,3.30496 11.1801,2.99659 12.5,3.00003H13C15.0843,3.11502 17.053,3.99479 18.5291,5.47089C20.0052,6.94699 20.885,8.91568 21,11V11.5Z"
+                  android:strokeColor="#8A9A5B"
+                  android:strokeWidth="1.4"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+      # 7.5 Create chat-panel injection asset — Premium Quiet Luxury Edition
+      - name: Create ATEEM context-flags + touch-polish assets
+        run: |
+
+          mkdir -p android/app/src/main/assets/inject
+
+          cat > android/app/src/main/assets/inject/ateem_widget_inject.js << 'EOF'
+          (function ATEEM_CONTEXT_FLAGS(){
+            /* This ONLY sets the page-context flags the site's own ATEEM chat
+               widget reads (window.ATEEM_SHOULD_SHOW / ATEEM_PAGE_TYPE /
+               ATEEM_PRODUCT_SLUG). The chat widget itself already lives on
+               ateem-store.com — we must never recreate it here, since a
+               second copy with the same element ids (#ateem-panel,
+               #ateem-header-chat, etc.) collides with the real one and is
+               exactly why the bot broke. */
+            var path = window.location.pathname.replace(/\/+$/, "");
+            var isHome    = (path === "" || path === "/");
+            var isProduct = /^\/shop\/[a-z0-9-]+$/i.test(path);
+            window.ATEEM_SHOULD_SHOW = isHome || isProduct;
+            window.ATEEM_PAGE_TYPE   = isHome ? "home" : (isProduct ? "product" : "other");
+            if (isProduct) window.ATEEM_PRODUCT_SLUG = path.replace("/shop/", "");
+          })();
+          EOF
+
+          cat > android/app/src/main/assets/inject/ateem_touch_polish.js << 'EOF'
+          (function ATEEM_TOUCH_POLISH(){
+            if (window.__ateemTouchPolishInjected) return;
+            window.__ateemTouchPolishInjected = true;
+            var style = document.createElement('style');
+            style.id = 'ateem-touch-polish-style';
+            /* Quiet touch feedback across the real site — removes the large
+               default Android tap-highlight flash on section/category cards
+               and links, without touching the site's own colors or the
+               chat widget's markup in any way. */
+            style.textContent = "html,body,a,button,[role='button']{-webkit-tap-highlight-color:transparent;}"
+              + "a:active,button:active,[role='button']:active{opacity:.94;transform:scale(0.985);transition:transform .12s ease,opacity .12s ease;}";
+            document.head.appendChild(style);
+          })();
+          EOF
+
+      # 8. Sync Capacitor
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+
+      # 8.5 Add Glide dependency
+      - name: Add Glide dependency
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+          MARKER = "ATEEM_GLIDE_DEPENDENCY"
+          if MARKER not in text:
+              addition = """
+
+          // """ + MARKER + """ - do not remove this marker comment
+
+          dependencies {
+
+              implementation 'com.github.bumptech.glide:glide:4.16.0'
+
+              annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
+
+              implementation 'androidx.core:core:1.12.0'
+          }
+
+          """
+              text += addition
+              path.write_text(text)
+              print("Glide dependency appended.")
+          else:
+              print("Marker already present - skipping.")
+          PY
+
+
+      # 9. Restore release keystore
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode \
+            > android/app/release.keystore
+
+
+      # 10. Verify keystore
+      - name: Verify keystore
+        run: |
+          test -s android/app/release.keystore
+          ls -lh android/app/release.keystore
+          file android/app/release.keystore
+
+
+      # 11. Test release keystore
+      - name: Test release keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          keytool -list \
+            -keystore android/app/release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias ateemrelease
+
+
+      # 12. Configure release signing
+      - name: Configure release signing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+          MARKER = "ATEEM_RELEASE_SIGNING_CONFIG"
+          if MARKER not in text:
+              signing = """
+
+          // """ + MARKER + """ - do not remove this marker comment
+
+          android {
+
+              signingConfigs {
+
+                  ateemRelease {
+
+                      storeFile file(
+                          "release.keystore"
+                      )
+
+                      storePassword System.getenv(
+                          "ATEEM_STORE_PASSWORD"
+                      )
+
+                      keyAlias System.getenv(
+                          "ATEEM_KEY_ALIAS"
+                      )
+
+                      keyPassword System.getenv(
+                          "ATEEM_KEY_PASSWORD"
+                      )
+                  }
+              }
+
+
+              buildTypes {
+
+                  release {
+
+                      signingConfig signingConfigs.ateemRelease
+
+                      minifyEnabled false
+                  }
+              }
+          }
+
+          """
+              text += signing
+              path.write_text(text)
+              print("Release signing config appended.")
+          else:
+              print("Marker already present - skipping.")
+          print("---- build.gradle tail ----")
+          print(path.read_text()[-1500:])
+          PY
+
+
+      # 13. Build release APK
+      - name: Build release APK
+        working-directory: android
+        env:
+          ATEEM_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ATEEM_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ATEEM_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "Checking signing configuration..."
+          test -n "$ATEEM_STORE_PASSWORD"
+          test -n "$ATEEM_KEY_ALIAS"
+          test -n "$ATEEM_KEY_PASSWORD"
+          test -s app/release.keystore
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --stacktrace
+
+
+      # 13.5 List build outputs
+      - name: List build outputs
+        run: |
+          echo "=== Searching for any APK files produced ==="
+          find android/app/build/outputs -type f -name "*.apk" 2>/dev/null || true
+          echo "=== Full outputs directory tree ==="
+          find android/app/build/outputs -type f 2>/dev/null || echo "outputs directory does not exist or is empty"
+
+
+      # 14. Upload APK
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ateem-store-apk-premium
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
