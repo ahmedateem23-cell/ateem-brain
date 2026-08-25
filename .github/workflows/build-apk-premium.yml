@@ -1,0 +1,2658 @@
+name: Build ATEEM STORE APK — Premium Quiet Luxury Edition
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1. Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      # 2. Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+
+      # 3. Java
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+
+      # 4. Install dependencies
+      - name: Install npm dependencies
+        run: npm install
+
+
+      # 5. Add Android
+      - name: Add Android platform
+        run: npx cap add android
+
+      # 5.5 Ensure the keyboard resizes the window (not pans over it) so the
+      # chat header always stays visible and the panel/input reflow above
+      # the keyboard instead of being covered by it.
+      - name: Ensure adjustResize for MainActivity
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if grep -q 'android:windowSoftInputMode' "$MANIFEST"; then
+            echo "windowSoftInputMode already present — leaving as-is."
+          else
+            perl -0777 -pi -e 's/(android:name="\.MainActivity")/$1\n            android:windowSoftInputMode="adjustResize"/' "$MANIFEST"
+          fi
+          grep -n "windowSoftInputMode" "$MANIFEST"
+
+      # 6. Generate app icon + splash (ivory background, standard system-sized icon)
+      - name: Generate app icons and splash
+        run: |
+          npm install -D @capacitor/assets
+          mkdir -p resources
+          curl -L "https://i.ibb.co/kgbq7p60/file-0000000094208246b82a7b38fe6e21ab.png" -o resources/source-logo.png
+
+          # Auto-trim any baked-in transparent margin/frame from the source so
+          # the logo isn't double-cropped or left with big empty gaps once
+          # Android composes it inside the icon/splash safe zone.
+          sudo apt-get update -y && sudo apt-get install -y imagemagick
+          convert resources/source-logo.png -trim +repage resources/source-logo-trimmed.png
+          cp resources/source-logo-trimmed.png resources/icon.png
+          cp resources/source-logo-trimmed.png resources/splash.png
+          cp resources/source-logo-trimmed.png resources/splash-dark.png
+
+          npx capacitor-assets generate \
+            --android \
+            --iconBackgroundColor '#F5F1E8' \
+            --iconBackgroundColorDark '#F5F1E8' \
+            --splashBackgroundColor '#F5F1E8' \
+            --splashBackgroundColorDark '#F5F1E8'
+
+      # 6.5 Shrink the generated icon/splash PNGs losslessly so the new
+      # source image doesn't bloat the APK across all density buckets.
+      - name: Optimize generated icon and splash assets
+        run: |
+          sudo apt-get install -y optipng
+          find android/app/src/main/res -iname '*.png' -print -exec optipng -o4 -quiet {} \;
+
+      # 7. Create Native Android shell (Premium Quiet Luxury Design)
+      - name: Create native Android shell
+        run: |
+
+          mkdir -p android/app/src/main/java/com/ateem/store
+          mkdir -p android/app/src/main/res/drawable
+
+          # ==========================================
+          # MainActivity.java — Premium Quiet Luxury
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/MainActivity.java << 'EOF'
+          package com.ateem.store;
+
+          import android.annotation.SuppressLint;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.ViewTreeObserver;
+          import android.view.Window;
+          import android.view.WindowManager;
+          import android.webkit.WebView;
+          import android.widget.FrameLayout;
+
+          import com.getcapacitor.BridgeActivity;
+          import com.getcapacitor.BridgeWebViewClient;
+
+          import java.io.BufferedReader;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.nio.charset.StandardCharsets;
+
+          /*
+           * ATEEM STORE — Premium Quiet Luxury Edition
+           * هوية بصرية هادئة: عاجي دافئ + رمادي دافئ + زيتوني أنيق
+           * تصميم بسيط وراقٍ بدون تأثيرات مبالغ فيها
+           */
+
+          public class MainActivity
+              extends BridgeActivity
+              implements NativeNavigation.OnNavTargetListener {
+
+              private NativeNavigation nativeNavigation;
+              private NativeHomeScreen nativeHomeScreen;
+              private View nativeHomeScreenView;
+              private NativeChatOverlay nativeChatOverlay;
+              private WebView webView;
+              private String ateemContextFlagsJs;
+              private String ateemTouchPolishJs;
+              private boolean pendingRevealWebView = false;
+
+              /* Quiet Luxury Palette */
+              private final int IVORY_BG    = Color.parseColor("#F5F1E8");
+              private final int CHARCOAL    = Color.parseColor("#3D3B36");
+
+              @SuppressLint("SetJavaScriptEnabled")
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  /* Full screen immersive */
+                  Window window = getWindow();
+                  window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+                  window.setStatusBarColor(Color.TRANSPARENT);
+                  window.setNavigationBarColor(IVORY_BG);
+                  hideSystemUI();
+
+                  /* WebView setup */
+                  webView = getBridge().getWebView();
+                  if (webView != null) {
+                      webView.setBackgroundColor(IVORY_BG);
+                      webView.getSettings().setJavaScriptEnabled(true);
+                      webView.setVisibility(View.GONE);
+
+                      ateemContextFlagsJs = loadAsset("inject/ateem_widget_inject.js");
+                      ateemTouchPolishJs  = loadAsset("inject/ateem_touch_polish.js");
+                      webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
+                          @Override
+                          public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                              super.onPageStarted(view, url, favicon);
+                              /* Must run BEFORE the page's own inline script reads
+                                 window.ATEEM_SHOULD_SHOW, or the site's real chat
+                                 widget hides itself permanently for that page. */
+                              injectAteemContextFlags(view);
+                          }
+
+                          @Override
+                          public void onPageFinished(WebView view, String url) {
+                              super.onPageFinished(view, url);
+                              injectAteemContextFlags(view);
+                              injectAteemTouchPolish(view);
+                              revealWebViewIfPending();
+                          }
+                      });
+                  }
+
+                  /* Bottom Navigation — Quiet Floating Bar */
+                  nativeNavigation = new NativeNavigation(this, webView);
+                  nativeNavigation.setOnNavTargetListener(this);
+                  nativeNavigation.attach();
+
+                  /* Native Home Screen — Premium Quiet */
+                  nativeHomeScreen = new NativeHomeScreen(
+                      this,
+                      this::onAteemChatButtonClick,
+                      this::onCategoryOrFooterLinkClick
+                  );
+                  nativeHomeScreenView = nativeHomeScreen.build();
+
+                  FrameLayout root = nativeNavigation.getRootContainer();
+                  if (root != null) {
+                      FrameLayout.LayoutParams homeParams = new FrameLayout.LayoutParams(
+                          FrameLayout.LayoutParams.MATCH_PARENT,
+                          FrameLayout.LayoutParams.MATCH_PARENT
+                      );
+                      root.addView(nativeHomeScreenView, homeParams);
+                      nativeHomeScreenView.bringToFront();
+
+                      View navView = nativeNavigation.getNavBarView();
+                      if (navView != null) navView.bringToFront();
+
+                      /* ATEEM Chat — fully in-app, loaded from a local asset.
+                         Sits above everything (including the bottom nav bar)
+                         so it opens the same way no matter what screen is
+                         behind it. */
+                      nativeChatOverlay = new NativeChatOverlay(this);
+                      View chatOverlayView = nativeChatOverlay.build();
+                      root.addView(chatOverlayView, homeParams);
+                      chatOverlayView.bringToFront();
+                  }
+
+                  linkWebViewInsets();
+              }
+
+              private void linkWebViewInsets() {
+                  final FrameLayout root = nativeNavigation.getRootContainer();
+                  if (root == null) return;
+
+                  root.getViewTreeObserver().addOnGlobalLayoutListener(
+                      new ViewTreeObserver.OnGlobalLayoutListener() {
+                          @Override
+                          public void onGlobalLayout() {
+                              View navView = nativeNavigation.getNavBarView();
+                              if (navView == null || navView.getHeight() == 0) return;
+                              root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+
+                              int bottomInset = navView.getHeight() + nativeNavigation.getNavBottomMargin();
+                              nativeNavigation.setWebViewInsets(0, bottomInset);
+
+                              if (nativeChatOverlay != null) {
+                                  nativeChatOverlay.setBottomInset(bottomInset);
+                              }
+
+                              if (nativeHomeScreenView != null) {
+                                  nativeHomeScreenView.setPadding(0, 0, 0, bottomInset);
+                              }
+                          }
+                      }
+                  );
+              }
+
+              public NativeNavigation getNativeNavigation() { return nativeNavigation; }
+
+              @Override
+              public void onHomeSelected() { showNativeHome(); }
+
+              @Override
+              public void onWebPathSelected(String path, int index) { showWebView(path); }
+
+              private void showNativeHome() {
+                  if (webView != null) webView.setVisibility(View.GONE);
+                  if (nativeHomeScreenView != null) nativeHomeScreenView.setVisibility(View.VISIBLE);
+              }
+
+              private void showWebView(String path) {
+                  pendingRevealWebView = true;
+                  nativeNavigation.loadWebUrl(path);
+              }
+
+              private void onAteemChatButtonClick() {
+                  /* Fully in-app now — no WebView navigation, no dependency
+                     on any page having loaded. Just toggle the local
+                     overlay, which is always ready. */
+                  if (nativeChatOverlay == null) return;
+                  if (nativeChatOverlay.isVisible()) {
+                      nativeChatOverlay.hide();
+                  } else {
+                      nativeChatOverlay.show();
+                  }
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (nativeChatOverlay != null && nativeChatOverlay.isVisible()) {
+                      nativeChatOverlay.hide();
+                      return;
+                  }
+                  super.onBackPressed();
+              }
+
+              private void onCategoryOrFooterLinkClick(String path) {
+                  pendingRevealWebView = true;
+                  nativeNavigation.openWebPath(path, 1);
+              }
+
+              private void revealWebViewIfPending() {
+                  if (!pendingRevealWebView) return;
+                  pendingRevealWebView = false;
+                  if (nativeHomeScreenView != null) nativeHomeScreenView.setVisibility(View.GONE);
+                  if (webView != null) webView.setVisibility(View.VISIBLE);
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) hideSystemUI();
+              }
+
+              private void hideSystemUI() {
+                  View decorView = getWindow().getDecorView();
+                  decorView.setSystemUiVisibility(
+                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_FULLSCREEN
+                  );
+              }
+
+              private void injectAteemContextFlags(WebView view) {
+                  if (view == null || ateemContextFlagsJs == null || ateemContextFlagsJs.isEmpty()) return;
+                  view.evaluateJavascript(ateemContextFlagsJs, null);
+              }
+
+              private void injectAteemTouchPolish(WebView view) {
+                  if (view == null || ateemTouchPolishJs == null || ateemTouchPolishJs.isEmpty()) return;
+                  view.evaluateJavascript(ateemTouchPolishJs, null);
+              }
+
+              private String loadAsset(String path) {
+                  StringBuilder builder = new StringBuilder();
+                  try (
+                      InputStream is = getAssets().open(path);
+                      BufferedReader reader = new BufferedReader(
+                          new InputStreamReader(is, StandardCharsets.UTF_8)
+                      )
+                  ) {
+                      String line;
+                      while ((line = reader.readLine()) != null) {
+                          builder.append(line).append('\n');
+                      }
+                  } catch (IOException e) { e.printStackTrace(); }
+                  return builder.toString();
+              }
+          }
+          EOF
+
+          # ==========================================
+          # NativeHeader.java — Premium Minimal Header
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/NativeHeader.java << 'EOF'
+          package com.ateem.store;
+
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
+          import android.content.res.ColorStateList;
+          import android.view.Gravity;
+          import android.view.MotionEvent;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          import com.bumptech.glide.Glide;
+          import com.bumptech.glide.load.engine.DiskCacheStrategy;
+          import com.bumptech.glide.load.resource.bitmap.CircleCrop;
+
+          public class NativeHeader {
+
+              /* Bot avatar — used for the header chat button */
+              private static final String BOT_AVATAR_URL =
+                  "https://i.ibb.co/F4vhYp7Y/file-00000000b6f081f490aa2899443132bd.png";
+
+              public interface OnChatClickListener {
+                  void onChatClick();
+              }
+
+              private final Activity activity;
+              private final OnChatClickListener chatClickListener;
+              private View headerRow;
+
+              /* Quiet Luxury Palette — Ivory / Olive / Gold */
+              private final int IVORY_BG    = Color.parseColor("#F5F1E8");
+              private final int WARM_WHITE  = Color.parseColor("#FEFCF8");
+              private final int CHARCOAL    = Color.parseColor("#3D3B36");
+              private final int WARM_GRAY   = Color.parseColor("#8A8680");
+              private final int OLIVE       = Color.parseColor("#8A9A5B");
+              private final int OLIVE_DEEP  = Color.parseColor("#6B7A45");
+              private final int GOLD        = Color.parseColor("#B8936A");
+              private final int OLIVE_MUTED = Color.parseColor("#E8EBE0");
+              private final int DIVIDER     = Color.parseColor("#E8E4DC");
+
+              private Typeface logoTypeface;
+              private Typeface labelTypeface;
+
+              public NativeHeader(Activity activity, OnChatClickListener chatClickListener) {
+                  this.activity = activity;
+                  this.chatClickListener = chatClickListener;
+                  this.logoTypeface = Typeface.create("sans-serif-light", Typeface.BOLD);
+                  this.labelTypeface = Typeface.create("sans-serif-light", Typeface.NORMAL);
+              }
+
+              public View getHeaderView() { return headerRow; }
+
+              public void attachTo(FrameLayout container) {
+                  if (container == null) return;
+                  LinearLayout headerLayout = new LinearLayout(activity);
+                  headerLayout.setOrientation(LinearLayout.HORIZONTAL);
+                  headerLayout.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  headerLayout.setGravity(Gravity.CENTER_VERTICAL);
+                  headerLayout.setPadding(dp(20), dp(14), dp(20), dp(10));
+
+                  /* Subtle warm background */
+                  GradientDrawable bg = new GradientDrawable();
+                  bg.setColor(Color.argb(245, 254, 252, 248));
+                  headerLayout.setBackground(bg);
+
+                  View brand = buildBrand();
+                  LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                  headerLayout.addView(brand, brandParams);
+
+                  View actions = buildActions();
+                  headerLayout.addView(actions, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  headerRow = headerLayout;
+
+                  FrameLayout.LayoutParams headerParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
+                  container.addView(headerRow, headerParams);
+                  headerRow.bringToFront();
+              }
+
+              public View buildStandalone() {
+                  FrameLayout headerFrame = new FrameLayout(activity);
+                  headerRow = headerFrame;
+                  headerFrame.setPadding(dp(20), dp(12), dp(8), dp(10));
+
+                  /* Clean ivory background */
+                  GradientDrawable headerBg = new GradientDrawable();
+                  headerBg.setColor(IVORY_BG);
+                  headerFrame.setBackground(headerBg);
+
+                  /* Subtle bottom divider */
+                  View divider = new View(activity);
+                  GradientDrawable divBg = new GradientDrawable();
+                  divBg.setColor(DIVIDER);
+                  divider.setBackground(divBg);
+                  FrameLayout.LayoutParams divParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, dp(1), Gravity.BOTTOM);
+                  headerFrame.addView(divider, divParams);
+
+                  View actions = buildActions();
+                  FrameLayout.LayoutParams actionsParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                  headerFrame.addView(actions, actionsParams);
+
+                  View brand = buildBrand();
+                  FrameLayout.LayoutParams brandParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                  headerFrame.addView(brand, brandParams);
+
+                  return headerFrame;
+              }
+
+              /* Main header brand mark — the app logo image, replacing the
+                 old plain "ATEEM" text lockup. Same source as the app icon
+                 and splash screen so the mark reads as one consistent logo
+                 everywhere in the app. */
+              private static final String BRAND_LOGO_URL =
+                  "https://i.ibb.co/kgbq7p60/file-0000000094208246b82a7b38fe6e21ab.png";
+
+              private View buildBrand() {
+                  LinearLayout wrap = new LinearLayout(activity);
+                  wrap.setOrientation(LinearLayout.VERTICAL);
+                  wrap.setGravity(Gravity.RIGHT);
+
+                  ImageView logo = new ImageView(activity);
+                  logo.setScaleType(ImageView.ScaleType.FIT_END);
+                  logo.setAdjustViewBounds(true);
+                  Glide.with(activity)
+                      .load(BRAND_LOGO_URL)
+                      .diskCacheStrategy(DiskCacheStrategy.ALL)
+                      .into(logo);
+                  LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, dp(46));
+                  wrap.addView(logo, logoParams);
+
+                  return wrap;
+              }
+
+              private View buildActions() {
+                  LinearLayout row = new LinearLayout(activity);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+                  /* SHOP label — quiet and refined */
+                  TextView shop = new TextView(activity);
+                  shop.setText("SHOP");
+                  shop.setTextSize(11);
+                  shop.setTextColor(WARM_GRAY);
+                  shop.setTypeface(labelTypeface);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      shop.setLetterSpacing(0.15f);
+                  }
+                  LinearLayout.LayoutParams shopParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  shopParams.leftMargin = dp(14);
+                  shop.setPadding(dp(6), dp(6), dp(6), dp(6));
+                  row.addView(shop, shopParams);
+
+                  shop.setOnClickListener(v -> {
+                      if (activity instanceof MainActivity) {
+                          ((MainActivity) activity).getNativeNavigation().navigateToPath("/shop");
+                      }
+                  });
+
+                  /* Chat Button — Bot Avatar on Deep Olive (matches website identity) */
+                  FrameLayout chatBtn = new FrameLayout(activity);
+                  GradientDrawable chatBg = new GradientDrawable();
+                  chatBg.setShape(GradientDrawable.OVAL);
+                  chatBg.setColor(OLIVE_DEEP);
+                  chatBg.setStroke(dp(1), Color.argb(38, 184, 147, 106)); // faint gold ring, like the web version
+
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      RippleDrawable ripple = new RippleDrawable(
+                          ColorStateList.valueOf(Color.argb(40, 184, 147, 106)), chatBg, null);
+                      chatBtn.setBackground(ripple);
+                  } else {
+                      chatBtn.setBackground(chatBg);
+                  }
+
+                  chatBtn.setElevation(dp(3));
+
+                  ImageView chatIcon = new ImageView(activity);
+                  chatIcon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  Glide.with(activity)
+                      .load(BOT_AVATAR_URL)
+                      .transform(new CircleCrop())
+                      .into(chatIcon);
+                  FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER);
+                  chatBtn.addView(chatIcon, iconParams);
+
+                  LinearLayout.LayoutParams chatBtnParams = new LinearLayout.LayoutParams(dp(46), dp(46));
+                  row.addView(chatBtn, chatBtnParams);
+
+                  chatBtn.setOnClickListener(v -> {
+                      if (chatClickListener != null) chatClickListener.onChatClick();
+                  });
+
+                  /* Tactile press feedback — a quick scale-down on touch-down,
+                     springing back on release, layered on top of the ripple
+                     so the button visibly "reacts" the instant it's tapped. */
+                  chatBtn.setOnTouchListener((v, event) -> {
+                      switch (event.getAction()) {
+                          case MotionEvent.ACTION_DOWN:
+                              v.animate().scaleX(0.90f).scaleY(0.90f).setDuration(120).start();
+                              break;
+                          case MotionEvent.ACTION_UP:
+                          case MotionEvent.ACTION_CANCEL:
+                              v.animate().scaleX(1f).scaleY(1f).setDuration(180)
+                                  .setInterpolator(new android.view.animation.OvershootInterpolator(3f))
+                                  .start();
+                              break;
+                      }
+                      return false; // let the click listener + ripple still fire normally
+                  });
+
+                  return row;
+              }
+
+              private int dp(int value) {
+                  float density = activity.getResources().getDisplayMetrics().density;
+                  return (int)(value * density + 0.5f);
+              }
+          }
+          EOF
+
+          # ==========================================
+          # NativeNavigation.java — Quiet Floating Bar
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/NativeNavigation.java << 'EOF'
+          package com.ateem.store;
+
+          import android.app.Activity;
+          import android.content.res.ColorStateList;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.ViewTreeObserver;
+          import android.webkit.WebView;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          import java.util.ArrayList;
+          import java.util.List;
+
+          public class NativeNavigation {
+
+              public interface OnNavTargetListener {
+                  void onHomeSelected();
+                  void onWebPathSelected(String path, int index);
+              }
+
+              private OnNavTargetListener navTargetListener;
+              public void setOnNavTargetListener(OnNavTargetListener listener) {
+                  this.navTargetListener = listener;
+              }
+
+              private final Activity activity;
+              private final WebView webView;
+              private FrameLayout rootContainer;
+              private FrameLayout navBar;
+              private final List<LinearLayout> items = new ArrayList<>();
+              private final List<ImageView> icons = new ArrayList<>();
+              private final List<TextView> labels = new ArrayList<>();
+
+              private final String[] paths = { "/", "/shop", "/shop/cart", "/my/account" };
+              private final int[] iconRes = {
+                  R.drawable.ic_nav_home, R.drawable.ic_nav_shop,
+                  R.drawable.ic_nav_cart, R.drawable.ic_nav_account
+              };
+              private final String[] labelText = { "الرئيسية", "المتجر", "السلة", "حسابي" };
+              private int activeIndex = 0;
+
+              /* Quiet Luxury Palette */
+              private final int BAR_BG        = Color.argb(252, 254, 252, 248);
+              private final int OLIVE         = Color.parseColor("#8A9A5B");
+              private final int OLIVE_MUTED   = Color.argb(20, 138, 154, 91);
+              private final int INACTIVE      = Color.parseColor("#B5B0A8");
+              private final int ACTIVE_BG     = Color.argb(18, 138, 154, 91);
+              private final int ACTIVE_BORDER = Color.argb(140, 138, 154, 91);
+              private final int DIVIDER       = Color.parseColor("#E8E4DC");
+
+              private final int NAV_BOTTOM_MARGIN_DP = 16;
+              private final Typeface labelTypeface = Typeface.create("sans-serif", Typeface.NORMAL);
+
+              public NativeNavigation(Activity activity, WebView webView) {
+                  this.activity = activity;
+                  this.webView = webView;
+              }
+
+              public FrameLayout getRootContainer() { return rootContainer; }
+              public View getNavBarView() { return navBar; }
+              public int getNavBottomMargin() { return dp(NAV_BOTTOM_MARGIN_DP); }
+
+              public void setWebViewInsets(int topInset, int bottomInset) {
+                  if (webView == null) return;
+                  ViewGroup.LayoutParams rawParams = webView.getLayoutParams();
+                  if (!(rawParams instanceof FrameLayout.LayoutParams)) return;
+                  FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) rawParams;
+                  params.topMargin = topInset;
+                  params.bottomMargin = bottomInset;
+                  webView.setLayoutParams(params);
+              }
+
+              public void attach() {
+                  if (webView == null) return;
+                  ViewGroup webViewParent = (ViewGroup) webView.getParent();
+                  if (webViewParent == null) return;
+
+                  rootContainer = new FrameLayout(activity);
+                  ViewGroup.LayoutParams rootParams = new ViewGroup.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+                  webViewParent.removeView(webView);
+                  webViewParent.addView(rootContainer, rootParams);
+
+                  FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+                  rootContainer.addView(webView, webParams);
+
+                  navBar = createNavigationBar();
+
+                  /* Quiet floating bar with soft shadow */
+                  FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(
+                      dpMax(), ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                  navParams.bottomMargin = dp(NAV_BOTTOM_MARGIN_DP);
+                  navParams.leftMargin = dp(12);
+                  navParams.rightMargin = dp(12);
+
+                  rootContainer.addView(navBar, navParams);
+                  navBar.bringToFront();
+
+                  navBar.getViewTreeObserver().addOnGlobalLayoutListener(
+                      new ViewTreeObserver.OnGlobalLayoutListener() {
+                          @Override
+                          public void onGlobalLayout() {
+                              navBar.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                              updateVisualState(activeIndex);
+                          }
+                      }
+                  );
+              }
+
+              private int dpMax() {
+                  int screenWidth = activity.getResources().getDisplayMetrics().widthPixels;
+                  int eightyEightPercent = (int)(screenWidth * 0.88f);
+                  int maxWidthPx = dp(380);
+                  return Math.min(eightyEightPercent, maxWidthPx);
+              }
+
+              private FrameLayout createNavigationBar() {
+                  FrameLayout bar = new FrameLayout(activity);
+
+                  /* Clean warm white background */
+                  GradientDrawable barBg = new GradientDrawable();
+                  barBg.setColor(BAR_BG);
+                  barBg.setCornerRadius(dp(21));
+                  bar.setBackground(barBg);
+
+                  /* Soft shadow */
+                  bar.setElevation(dp(12));
+
+                  /* Subtle olive border */
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      bar.setClipToOutline(true);
+                      bar.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                          @Override
+                          public void getOutline(View v, android.graphics.Outline outline) {
+                              outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(21));
+                          }
+                      });
+                  }
+
+                  bar.setClipToPadding(false);
+                  bar.setClipChildren(false);
+
+                  LinearLayout row = new LinearLayout(activity);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setPadding(dp(8), dp(5), dp(8), dp(7));
+                  row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+                  bar.addView(row, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  for (int i = 0; i < paths.length; i++) {
+                      final int index = i;
+                      LinearLayout item = createItem(iconRes[i], labelText[i]);
+                      LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
+                          0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                      row.addView(item, itemParams);
+                      items.add(item);
+                      item.setOnClickListener(v -> onItemClick(index));
+                  }
+
+                  return bar;
+              }
+
+              private LinearLayout createItem(int iconResId, String label) {
+                  LinearLayout item = new LinearLayout(activity);
+                  item.setOrientation(LinearLayout.VERTICAL);
+                  item.setGravity(Gravity.CENTER);
+                  item.setClickable(true);
+                  item.setPadding(dp(11), dp(4), dp(11), dp(4));
+
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                      item.setForeground(new RippleDrawable(
+                          ColorStateList.valueOf(Color.argb(16, 138, 154, 91)), null, null));
+                  }
+
+                  ImageView icon = new ImageView(activity);
+                  icon.setImageResource(iconResId);
+                  icon.setColorFilter(INACTIVE);
+                  LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(19), dp(19));
+                  item.addView(icon, iconParams);
+                  icons.add(icon);
+
+                  TextView labelView = new TextView(activity);
+                  labelView.setText(label);
+                  labelView.setTextSize(9f);
+                  labelView.setTypeface(labelTypeface);
+                  labelView.setTextColor(INACTIVE);
+                  labelView.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  labelParams.topMargin = dp(2);
+                  item.addView(labelView, labelParams);
+                  labels.add(labelView);
+
+                  return item;
+              }
+
+              private void onItemClick(int index) {
+                  if (index == activeIndex) {
+                      if (index == 0 && navTargetListener != null) navTargetListener.onHomeSelected();
+                      return;
+                  }
+                  setActiveIndex(index);
+                  dispatchTarget(index);
+              }
+
+              private void dispatchTarget(int index) {
+                  if (navTargetListener == null) {
+                      navigate(paths[index]);
+                      return;
+                  }
+                  if (index == 0) navTargetListener.onHomeSelected();
+                  else navTargetListener.onWebPathSelected(paths[index], index);
+              }
+
+              private void setActiveIndex(int index) {
+                  activeIndex = index;
+                  updateVisualState(index);
+              }
+
+              private void updateVisualState(int activeIdx) {
+                  for (int i = 0; i < items.size(); i++) {
+                      boolean isActive = (i == activeIdx);
+                      ImageView icon = icons.get(i);
+                      TextView label = labels.get(i);
+                      LinearLayout item = items.get(i);
+
+                      int targetColor = isActive ? OLIVE : INACTIVE;
+                      icon.setColorFilter(targetColor);
+                      label.setTextColor(targetColor);
+
+                      if (isActive) {
+                          /* Quiet active state */
+                          GradientDrawable activeBg = new GradientDrawable();
+                          activeBg.setColor(ACTIVE_BG);
+                          activeBg.setStroke(dp(1), ACTIVE_BORDER);
+                          activeBg.setCornerRadius(dp(12));
+                          item.setBackground(activeBg);
+                          item.setElevation(dp(2));
+                      } else {
+                          item.setBackground(null);
+                          item.setElevation(0);
+                      }
+                  }
+              }
+
+              public void syncActiveFromUrl(String url) {
+                  if (url == null) return;
+                  String path;
+                  try {
+                      android.net.Uri uri = android.net.Uri.parse(url);
+                      path = uri.getPath();
+                      if (path == null) path = "/";
+                  } catch (Exception e) { path = "/"; }
+
+                  if (path.length() > 1 && path.endsWith("/"))
+                      path = path.substring(0, path.length() - 1);
+
+                  int bestIndex = 0, bestLength = -1;
+                  for (int i = 0; i < paths.length; i++) {
+                      String p = paths[i];
+                      boolean matches = path.equals(p) ||
+                          (!p.equals("/") && path.startsWith(p + "/")) ||
+                          (!p.equals("/") && path.equals(p));
+                      if (matches && p.length() > bestLength) {
+                          bestIndex = i; bestLength = p.length();
+                      }
+                  }
+                  if (bestIndex != activeIndex) setActiveIndex(bestIndex);
+                  else updateVisualState(activeIndex);
+              }
+
+              public void navigateToPath(String path) {
+                  int index = indexForPath(path);
+                  if (index != activeIndex) setActiveIndex(index);
+                  dispatchTarget(index);
+              }
+
+              public void openWebPath(String fullPath, int highlightIndex) {
+                  if (highlightIndex != activeIndex) setActiveIndex(highlightIndex);
+                  if (navTargetListener != null)
+                      navTargetListener.onWebPathSelected(fullPath, highlightIndex);
+                  else navigate(fullPath);
+              }
+
+              private int indexForPath(String path) {
+                  for (int i = 0; i < paths.length; i++) if (paths[i].equals(path)) return i;
+                  return activeIndex;
+              }
+
+              public boolean loadWebUrl(String path) { return navigate(path); }
+
+              private boolean navigate(String path) {
+                  if (webView == null) return false;
+                  String current = webView.getUrl();
+                  String base = "https://www.ateem-store.com";
+                  String target = base + path;
+                  if (current != null && current.equals(target)) return false;
+                  webView.loadUrl(target);
+                  return true;
+              }
+
+              private int dp(int value) {
+                  float density = activity.getResources().getDisplayMetrics().density;
+                  return (int)(value * density + 0.5f);
+              }
+          }
+          EOF
+
+          # ==========================================
+          # NativeChatOverlay.java — Fully In-App Chat
+          # Loads the widget from a bundled local asset
+          # instead of the live website. Works instantly,
+          # never depends on any remote page having loaded.
+          # ==========================================
+
+          cat > android/app/src/main/java/com/ateem/store/NativeChatOverlay.java << 'EOF'
+          package com.ateem.store;
+
+          import android.annotation.SuppressLint;
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.view.View;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          /*
+           * ATEEM Chat — Fully In-App Edition
+           * The chat panel (header avatar, messages, quick replies, product
+           * cards, voice input, TTS) is bundled as a local HTML/CSS/JS asset
+           * at android/app/src/main/assets/ateem_chat/chat.html and rendered
+           * in a small transparent WebView that lives on top of the native
+           * shell. It never loads anything from ateem-store.com, so it opens
+           * instantly and works the same whether the user is on the native
+           * home screen or browsing a shop page.
+           */
+          public class NativeChatOverlay {
+
+              private final Activity activity;
+              private WebView webView;
+              private boolean isVisible = false;
+              private boolean pageReady = false;
+              private int bottomInsetPx = 0;
+
+              public NativeChatOverlay(Activity activity) {
+                  this.activity = activity;
+              }
+
+              @SuppressLint("SetJavaScriptEnabled")
+              public View build() {
+                  webView = new WebView(activity);
+                  webView.setBackgroundColor(Color.TRANSPARENT);
+                  /* Transparent hardware-accelerated WebViews can render behind
+                     sibling native views regardless of add/bringToFront order —
+                     a known WebView quirk. Forcing LAYER_TYPE_SOFTWARE used to
+                     be the workaround here, but it made every scroll/keystroke
+                     inside the bot render on the CPU instead of the GPU, which
+                     is what made the bot feel heavy while browsing and typing.
+                     Elevation solves the same stacking problem while keeping
+                     the WebView hardware-accelerated. */
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                      webView.setElevation(9999f);
+                  }
+                  webView.getSettings().setJavaScriptEnabled(true);
+                  webView.getSettings().setDomStorageEnabled(true);
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          super.onPageFinished(view, url);
+                          pageReady = true;
+                          applyBottomInset();
+                      }
+                  });
+                  webView.addJavascriptInterface(new JsBridge(), "AteemNative");
+                  webView.setVisibility(View.GONE);
+                  webView.loadUrl("file:///android_asset/ateem_chat/chat.html");
+                  return webView;
+              }
+
+              public View getView() { return webView; }
+
+              public boolean isVisible() { return isVisible; }
+
+              /* Tells the panel exactly how tall the bottom nav bar is, so
+                 its bottom edge always ends a comfortable margin above it
+                 instead of a fixed guess that can overlap on some screens. */
+              public void setBottomInset(int px) {
+                  bottomInsetPx = px;
+                  applyBottomInset();
+              }
+
+              private void applyBottomInset() {
+                  if (webView == null || !pageReady) return;
+                  webView.evaluateJavascript(
+                      "(function(){ document.documentElement.style.setProperty('--ateem-bottom-inset','"
+                          + bottomInsetPx + "px'); })();",
+                      null
+                  );
+              }
+
+              public void show() {
+                  if (webView == null) return;
+                  isVisible = true;
+                  webView.bringToFront();
+                  webView.setVisibility(View.VISIBLE);
+                  webView.evaluateJavascript(
+                      "(function(){ if (window.ateemOpenPanel) window.ateemOpenPanel(); })();",
+                      null
+                  );
+              }
+
+              public void hide() {
+                  if (webView == null) return;
+                  isVisible = false;
+                  webView.setVisibility(View.GONE);
+              }
+
+              /* Called from the local chat.html once its own close
+                 animation finishes, so the WebView is only hidden after
+                 the panel/backdrop have visually faded out. */
+              private class JsBridge {
+                  @JavascriptInterface
+                  public void onCloseRequested() {
+                      activity.runOnUiThread(NativeChatOverlay.this::hide);
+                  }
+              }
+          }
+          EOF
+
+          cat > android/app/src/main/java/com/ateem/store/NativeHomeScreen.java << 'EOF'
+          package com.ateem.store;
+
+          import android.app.Activity;
+          import android.content.Context;
+          import android.content.res.ColorStateList;
+          import android.graphics.Color;
+          import android.graphics.Outline;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.ViewOutlineProvider;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          import androidx.core.widget.NestedScrollView;
+
+          import com.bumptech.glide.Glide;
+          import com.bumptech.glide.load.engine.DiskCacheStrategy;
+
+          import java.util.ArrayList;
+          import java.util.List;
+
+          /*
+           * ATEEM STORE — Premium Quiet Luxury Home Screen
+           * تصميم هادئ وراقٍ: خلفية عاجية + بانر أنيق بسيط
+           * + بطاقات ناعمة بدون تأثيرات مبالغ فيها
+           */
+
+          public class NativeHomeScreen {
+
+              public interface OnChatClickListener { void onChatClick(); }
+              public interface OnCategoryClickListener { void onCategoryClick(String path); }
+
+              private final Activity activity;
+              private final OnChatClickListener chatClickListener;
+              private final OnCategoryClickListener categoryClickListener;
+              private final Handler bannerHandler = new Handler(Looper.getMainLooper());
+              private Runnable bannerRunnable;
+              private int currentSlide = 0;
+              private ImageView bannerImage;
+              private TextView bannerBrandLabel, bannerTitle, bannerDesc;
+              private LinearLayout dotsRow;
+              private final List<View> dots = new ArrayList<>();
+
+              /* Quiet Luxury Palette */
+              private final int IVORY_BG     = Color.parseColor("#F5F1E8");
+              private final int WARM_WHITE   = Color.parseColor("#FEFCF8");
+              private final int CREAM        = Color.parseColor("#F0EDE6");
+              private final int CHARCOAL     = Color.parseColor("#3D3B36");
+              private final int WARM_GRAY    = Color.parseColor("#8A8680");
+              private final int SOFT_GRAY    = Color.parseColor("#B5B0A8");
+              private final int OLIVE        = Color.parseColor("#8A9A5B");
+              private final int OLIVE_LIGHT  = Color.parseColor("#A8B88A");
+              private final int OLIVE_MUTED  = Color.parseColor("#E8EBE0");
+              private final int WHITE        = Color.parseColor("#FFFFFF");
+              private final int DIVIDER      = Color.parseColor("#E8E4DC");
+
+              private final Typeface serifBold  = Typeface.create("serif", Typeface.BOLD);
+              private final Typeface sansLight  = Typeface.create("sans-serif-light", Typeface.NORMAL);
+              private final Typeface sansMedium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+              private final Typeface sansBold   = Typeface.create("sans-serif", Typeface.BOLD);
+
+              private static class Slide {
+                  String brand, title, desc, button, imageUrl;
+                  Slide(String brand, String title, String desc, String button, String imageUrl) {
+                      this.brand = brand; this.title = title; this.desc = desc;
+                      this.button = button; this.imageUrl = imageUrl;
+                  }
+              }
+
+              private final Slide[] slides = new Slide[] {
+                  new Slide("urban street", "كن جديداً كل يوم",
+                      "ستريتوير، سنيكرز وأكثر من مجرد ملابس", "تسوق الآن",
+                      "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=900&q=80"),
+                  new Slide("luxury collection", "كن الأفضل لتفوز",
+                      "أناقة رجالية فاخرة بأسلوب عصري", "اكتشف المزيد",
+                      "https://images.unsplash.com/photo-1507680434567-5739c80be1ac?w=900&q=80"),
+                  new Slide("new season", "أسلوبك هويتك",
+                      "تشكيلة خريف شتاء 2026", "اطلب الآن",
+                      "https://images.unsplash.com/photo-1516826957135-700dedea698c?w=900&q=80")
+              };
+
+              private static class Category {
+                  String label, imageUrl, path;
+                  Category(String label, String imageUrl, String path) {
+                      this.label = label; this.imageUrl = imageUrl; this.path = path;
+                  }
+              }
+
+              private final Category[] categories = new Category[] {
+                  new Category("SHIRTS", "https://i.ibb.co/39GtkmxV/file-00000000ffb0722faa08b8d847cf7141.png", "/shop/category/shirts-9"),
+                  new Category("FOOTWEAR", "https://i.ibb.co/bMKftkK7/file-00000000793c71f686539d36b13ce7a9.png", "/shop/category/footwear-17"),
+                  new Category("FORMAL WEAR", "https://i.ibb.co/W4wJRspZ/file-00000000923c71f5bf19575efbaf07e5.png", "/shop/category/formal-wear-18"),
+                  new Category("ACCESSORIES", "https://i.ibb.co/gLg05tLH/file-0000000066e471f689fc2a0850067e92.png", "/shop/category/accessories-19")
+              };
+
+              public NativeHomeScreen(Activity activity, OnChatClickListener chatClickListener,
+                                      OnCategoryClickListener categoryClickListener) {
+                  this.activity = activity;
+                  this.chatClickListener = chatClickListener;
+                  this.categoryClickListener = categoryClickListener;
+              }
+
+              public View build() {
+                  NestedScrollView scroll = new NestedScrollView(activity);
+                  scroll.setFillViewport(true);
+                  scroll.setBackgroundColor(IVORY_BG);
+
+                  LinearLayout column = new LinearLayout(activity);
+                  column.setOrientation(LinearLayout.VERTICAL);
+                  column.setBackgroundColor(IVORY_BG);
+                  scroll.addView(column, new ViewGroup.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* 1) Premium Minimal Header */
+                  NativeHeader header = new NativeHeader(activity,
+                      () -> { if (chatClickListener != null) chatClickListener.onChatClick(); });
+                  column.addView(header.buildStandalone(), new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* 2) Quiet Elegant Banner */
+                  column.addView(buildBanner(), bannerContainerParams());
+
+                  /* 3) Collections Title + Quiet Grid */
+                  column.addView(buildCollectionsHeader());
+                  column.addView(buildCollectionsGrid());
+
+                  /* 4) Quiet Footer */
+                  column.addView(buildFooter());
+
+                  return scroll;
+              }
+
+              private LinearLayout.LayoutParams bannerContainerParams() {
+                  LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  params.leftMargin = dp(16); params.rightMargin = dp(16); params.topMargin = dp(12);
+                  return params;
+              }
+
+              /* ============== QUIET ELEGANT BANNER ============== */
+              private View buildBanner() {
+                  FrameLayout wrap = new FrameLayout(activity);
+                  wrap.setClipChildren(false);
+                  wrap.setClipToPadding(false);
+
+                  /* Main banner card — clean and quiet */
+                  AspectFrameLayout frame = new AspectFrameLayout(activity, 4f / 3f);
+                  roundCorners(frame, dp(20));
+                  frame.setBackgroundColor(CREAM);
+                  frame.setElevation(dp(3));
+
+                  bannerImage = new ImageView(activity);
+                  bannerImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  frame.addView(bannerImage, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Soft bottom scrim for text — concentrated behind the text zone only */
+                  View overlay = new View(activity);
+                  GradientDrawable overlayBg = new GradientDrawable(
+                      GradientDrawable.Orientation.TOP_BOTTOM,
+                      new int[] {
+                          Color.TRANSPARENT,
+                          Color.TRANSPARENT,
+                          Color.argb(60, 20, 18, 15),
+                          Color.argb(185, 20, 18, 15)
+                      });
+                  overlayBg.setGradientType(GradientDrawable.LINEAR_GRADIENT);
+                  overlay.setBackground(overlayBg);
+                  frame.addView(overlay, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Subtle border */
+                  View borderView = new View(activity);
+                  GradientDrawable borderBg = new GradientDrawable();
+                  borderBg.setColor(Color.TRANSPARENT);
+                  borderBg.setStroke(dp(1), Color.argb(100, 200, 196, 186));
+                  borderBg.setCornerRadius(dp(20));
+                  borderView.setBackground(borderBg);
+                  frame.addView(borderView, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Text column */
+                  LinearLayout textCol = new LinearLayout(activity);
+                  textCol.setOrientation(LinearLayout.VERTICAL);
+                  textCol.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  textCol.setPadding(dp(22), dp(14), dp(22), dp(22));
+
+                  bannerBrandLabel = new TextView(activity);
+                  bannerBrandLabel.setTextSize(9);
+                  bannerBrandLabel.setTextColor(Color.argb(180, 240, 236, 228));
+                  bannerBrandLabel.setTypeface(sansMedium);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      bannerBrandLabel.setLetterSpacing(0.2f);
+                  bannerBrandLabel.setShadowLayer(dp(3), 0, dp(1), Color.argb(90, 0, 0, 0));
+                  textCol.addView(bannerBrandLabel);
+
+                  bannerTitle = new TextView(activity);
+                  bannerTitle.setTextSize(24);
+                  bannerTitle.setTextColor(WHITE);
+                  bannerTitle.setTypeface(serifBold);
+                  bannerTitle.setLineSpacing(0f, 1.05f);
+                  bannerTitle.setShadowLayer(dp(6), 0, dp(2), Color.argb(110, 0, 0, 0));
+                  LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  titleParams.topMargin = dp(6);
+                  textCol.addView(bannerTitle, titleParams);
+
+                  bannerDesc = new TextView(activity);
+                  bannerDesc.setTextSize(12);
+                  bannerDesc.setTextColor(Color.argb(180, 255, 255, 255));
+                  bannerDesc.setLineSpacing(dp(2), 1f);
+                  bannerDesc.setShadowLayer(dp(4), 0, dp(1), Color.argb(90, 0, 0, 0));
+                  LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  descParams.topMargin = dp(5);
+                  descParams.bottomMargin = dp(14);
+                  textCol.addView(bannerDesc, descParams);
+
+                  /* Quiet CTA Button — Olive pill */
+                  TextView button = new TextView(activity);
+                  button.setText("تسوق الآن");
+                  button.setTextSize(10);
+                  button.setTextColor(WHITE);
+                  button.setTypeface(sansMedium);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      button.setLetterSpacing(0.06f);
+                  GradientDrawable btnBg = new GradientDrawable();
+                  btnBg.setColor(OLIVE);
+                  btnBg.setCornerRadius(dp(20));
+                  button.setBackground(btnBg);
+                  button.setPadding(dp(18), dp(8), dp(18), dp(8));
+                  LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  textCol.addView(button, btnParams);
+
+                  FrameLayout.LayoutParams textColParams = new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+                  frame.addView(textCol, textColParams);
+
+                  /* Dots indicator */
+                  dotsRow = new LinearLayout(activity);
+                  dotsRow.setOrientation(LinearLayout.HORIZONTAL);
+                  dotsRow.setGravity(Gravity.CENTER_HORIZONTAL);
+                  for (int i = 0; i < slides.length; i++) {
+                      View dot = new View(activity);
+                      GradientDrawable dotBg = new GradientDrawable();
+                      dotBg.setShape(GradientDrawable.OVAL);
+                      dotBg.setColor(Color.argb(70, 255, 255, 255));
+                      dot.setBackground(dotBg);
+                      LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(5), dp(5));
+                      dotParams.leftMargin = dp(3); dotParams.rightMargin = dp(3);
+                      dotsRow.addView(dot, dotParams);
+                      dots.add(dot);
+                      final int index = i;
+                      dot.setOnClickListener(v -> goToSlide(index));
+                  }
+                  LinearLayout.LayoutParams dotsParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  dotsParams.topMargin = dp(12);
+                  dotsParams.gravity = Gravity.CENTER_HORIZONTAL;
+                  textCol.addView(dotsRow, dotsParams);
+
+                  wrap.addView(frame, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  applySlide(0);
+                  startAutoSlide();
+
+                  return wrap;
+              }
+
+              private void applySlide(int index) {
+                  Slide slide = slides[index];
+                  bannerBrandLabel.setText(slide.brand.toUpperCase());
+                  bannerTitle.setText(slide.title);
+                  bannerDesc.setText(slide.desc);
+                  Glide.with(activity).load(slide.imageUrl)
+                      .diskCacheStrategy(DiskCacheStrategy.ALL).centerCrop().into(bannerImage);
+
+                  for (int i = 0; i < dots.size(); i++) {
+                      View dot = dots.get(i);
+                      GradientDrawable dotBg = new GradientDrawable();
+                      dotBg.setShape(GradientDrawable.OVAL);
+                      boolean isActive = (i == index);
+                      dotBg.setColor(isActive ? OLIVE : Color.argb(50, 255, 255, 255));
+                      dot.setBackground(dotBg);
+                      ViewGroup.LayoutParams lp = dot.getLayoutParams();
+                      if (lp instanceof LinearLayout.LayoutParams) {
+                          ((LinearLayout.LayoutParams) lp).width = isActive ? dp(14) : dp(5);
+                          dot.setLayoutParams(lp);
+                      }
+                  }
+              }
+
+              private void goToSlide(int index) {
+                  currentSlide = index;
+                  applySlide(currentSlide);
+                  restartAutoSlide();
+              }
+
+              private void startAutoSlide() {
+                  bannerRunnable = () -> {
+                      currentSlide = (currentSlide + 1) % slides.length;
+                      applySlide(currentSlide);
+                      bannerHandler.postDelayed(bannerRunnable, 5000);
+                  };
+                  bannerHandler.postDelayed(bannerRunnable, 5000);
+              }
+
+              private void restartAutoSlide() {
+                  if (bannerRunnable != null) bannerHandler.removeCallbacks(bannerRunnable);
+                  startAutoSlide();
+              }
+
+              /* ============== QUIET COLLECTIONS ============== */
+              private View buildCollectionsHeader() {
+                  LinearLayout row = new LinearLayout(activity);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  rowParams.topMargin = dp(26); rowParams.bottomMargin = dp(14);
+                  rowParams.leftMargin = dp(24); rowParams.rightMargin = dp(24);
+
+                  /* Quiet decorative line */
+                  View lineLeft = new View(activity);
+                  GradientDrawable lineLeftBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.TRANSPARENT, Color.argb(70, 180, 178, 170) });
+                  row.addView(lineLeft, new LinearLayout.LayoutParams(0, dp(1), 1f));
+
+                  /* Olive dot accent */
+                  View dot = new View(activity);
+                  GradientDrawable dotBg = new GradientDrawable();
+                  dotBg.setShape(GradientDrawable.OVAL);
+                  dotBg.setColor(OLIVE);
+                  dot.setBackground(dotBg);
+                  LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(4), dp(4));
+                  dotParams.rightMargin = dp(8);
+                  row.addView(dot, dotParams);
+
+                  TextView title = new TextView(activity);
+                  title.setText("OUR COLLECTIONS");
+                  title.setTextSize(11);
+                  title.setTextColor(CHARCOAL);
+                  title.setTypeface(serifBold);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      title.setLetterSpacing(0.2f);
+                  LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  titleParams.leftMargin = dp(8); titleParams.rightMargin = dp(8);
+                  row.addView(title, titleParams);
+
+                  /* Olive dot accent */
+                  View dot2 = new View(activity);
+                  dot2.setBackground(dotBg);
+                  LinearLayout.LayoutParams dot2Params = new LinearLayout.LayoutParams(dp(4), dp(4));
+                  dot2Params.leftMargin = dp(8);
+                  row.addView(dot2, dot2Params);
+
+                  View lineRight = new View(activity);
+                  GradientDrawable lineRightBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.argb(70, 180, 178, 170), Color.TRANSPARENT });
+                  lineRight.setBackground(lineRightBg);
+                  row.addView(lineRight, new LinearLayout.LayoutParams(0, dp(1), 1f));
+
+                  FrameLayout wrap = new FrameLayout(activity);
+                  wrap.addView(row, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  wrap.setLayoutParams(rowParams);
+                  return wrap;
+              }
+
+              private View buildCollectionsGrid() {
+                  LinearLayout grid = new LinearLayout(activity);
+                  grid.setOrientation(LinearLayout.VERTICAL);
+                  LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  gridParams.leftMargin = dp(16); gridParams.rightMargin = dp(16);
+                  grid.setLayoutParams(gridParams);
+                  grid.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  grid.setClipChildren(false);
+                  grid.setClipToPadding(false);
+
+                  /* Row 1: FOOTWEAR | SHIRTS */
+                  LinearLayout row1 = new LinearLayout(activity);
+                  row1.setOrientation(LinearLayout.HORIZONTAL);
+                  row1.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  row1.setClipChildren(false);
+                  row1.setClipToPadding(false);
+                  row1.setPadding(0, dp(7), 0, dp(7));
+                  addCategoryCard(row1, categories[1], -8f);
+                  addCategoryCard(row1, categories[0], 0f);
+                  grid.addView(row1, new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* Row 2: ACCESSORIES | FORMAL WEAR */
+                  LinearLayout row2 = new LinearLayout(activity);
+                  row2.setOrientation(LinearLayout.HORIZONTAL);
+                  row2.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                  row2.setClipChildren(false);
+                  row2.setClipToPadding(false);
+                  row2.setPadding(0, dp(7), 0, dp(7));
+                  LinearLayout.LayoutParams row2Params = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  row2Params.topMargin = dp(8);
+                  addCategoryCard(row2, categories[3], 8f);
+                  addCategoryCard(row2, categories[2], 0f);
+                  grid.addView(row2, row2Params);
+
+                  return grid;
+              }
+
+              private void addCategoryCard(LinearLayout parentRow, Category category, float verticalOffsetDp) {
+                  /* Quiet card — warm white with soft shadow */
+                  FrameLayout card = new FrameLayout(activity);
+                  AspectFrameLayout aspectCard = new AspectFrameLayout(activity, 3f / 4f);
+                  roundCorners(aspectCard, dp(18));
+
+                  /* Warm white background */
+                  GradientDrawable cardBg = new GradientDrawable();
+                  cardBg.setColor(WARM_WHITE);
+                  cardBg.setCornerRadius(dp(18));
+                  aspectCard.setBackground(cardBg);
+
+                  /* Subtle border */
+                  View border = new View(activity);
+                  GradientDrawable borderBg = new GradientDrawable();
+                  borderBg.setColor(Color.TRANSPARENT);
+                  borderBg.setStroke(dp(1), Color.argb(30, 180, 178, 170));
+                  borderBg.setCornerRadius(dp(18));
+                  border.setBackground(borderBg);
+                  aspectCard.addView(border, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  ImageView img = new ImageView(activity);
+                  img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  Glide.with(activity).load(category.imageUrl)
+                      .diskCacheStrategy(DiskCacheStrategy.ALL).centerCrop().into(img);
+                  aspectCard.addView(img, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Soft dark overlay for text readability */
+                  View overlay = new View(activity);
+                  GradientDrawable overlayBg = new GradientDrawable(
+                      GradientDrawable.Orientation.BOTTOM_TOP,
+                      new int[] { Color.argb(180, 45, 43, 38), Color.argb(10, 45, 43, 38) });
+                  aspectCard.addView(overlay, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  /* Label column */
+                  LinearLayout labelCol = new LinearLayout(activity);
+                  labelCol.setOrientation(LinearLayout.VERTICAL);
+                  labelCol.setGravity(Gravity.CENTER_HORIZONTAL);
+                  labelCol.setPadding(dp(10), 0, dp(10), dp(16));
+
+                  TextView label = new TextView(activity);
+                  label.setText(category.label);
+                  label.setTextSize(11);
+                  label.setTextColor(WHITE);
+                  label.setTypeface(sansBold);
+                  label.setGravity(Gravity.CENTER);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      label.setLetterSpacing(0.12f);
+                  labelCol.addView(label);
+
+                  /* Olive underline */
+                  View underline = new View(activity);
+                  GradientDrawable underlineBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.TRANSPARENT, OLIVE, Color.TRANSPARENT });
+                  underline.setBackground(underlineBg);
+                  LinearLayout.LayoutParams underlineParams = new LinearLayout.LayoutParams(dp(24), dp(2));
+                  underlineParams.topMargin = dp(6);
+                  underlineParams.gravity = Gravity.CENTER_HORIZONTAL;
+                  labelCol.addView(underline, underlineParams);
+
+                  aspectCard.addView(labelCol, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+
+                  card.addView(aspectCard, new FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  /* Quiet touch effect */
+                  card.setClickable(true);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                      card.setForeground(new RippleDrawable(
+                          ColorStateList.valueOf(Color.argb(16, 138, 154, 91)), null, null));
+                  }
+
+                  card.setOnTouchListener((v, event) -> {
+                      switch (event.getActionMasked()) {
+                          case android.view.MotionEvent.ACTION_DOWN:
+                              v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(100).start();
+                              break;
+                          case android.view.MotionEvent.ACTION_UP:
+                          case android.view.MotionEvent.ACTION_CANCEL:
+                              v.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
+                              break;
+                      }
+                      return false;
+                  });
+
+                  card.setOnClickListener(v -> {
+                      if (categoryClickListener != null)
+                          categoryClickListener.onCategoryClick(category.path);
+                  });
+
+                  /* Soft elevation */
+                  card.setElevation(dp(6));
+
+                  LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                      0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                  if (parentRow.getChildCount() == 1) cardParams.rightMargin = dp(12);
+                  parentRow.addView(card, cardParams);
+
+                  if (verticalOffsetDp != 0f)
+                      card.setTranslationY(dp((int) verticalOffsetDp));
+              }
+
+              /* ============== QUIET FOOTER ============== */
+              private View buildFooter() {
+                  LinearLayout wrap = new LinearLayout(activity);
+                  wrap.setOrientation(LinearLayout.VERTICAL);
+                  wrap.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams wrapParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  wrapParams.topMargin = dp(36); wrapParams.bottomMargin = dp(28);
+                  wrap.setLayoutParams(wrapParams);
+
+                  /* Subtle divider */
+                  View sep = new View(activity);
+                  GradientDrawable sepBg = new GradientDrawable(
+                      GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[] { Color.TRANSPARENT, DIVIDER, Color.TRANSPARENT });
+                  sep.setBackground(sepBg);
+                  LinearLayout.LayoutParams sepParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+                  sepParams.leftMargin = dp(40); sepParams.rightMargin = dp(40);
+                  sepParams.bottomMargin = dp(18);
+                  wrap.addView(sep, sepParams);
+
+                  /* Links row */
+                  LinearLayout linksRow = new LinearLayout(activity);
+                  linksRow.setOrientation(LinearLayout.HORIZONTAL);
+                  linksRow.setGravity(Gravity.CENTER);
+                  linksRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+                  addFooterLink(linksRow, "تواصل معنا", "/twsl-m-n");
+                  addFooterDot(linksRow);
+                  addFooterLink(linksRow, "الخصوصية", "/sys-lkhswsy");
+                  addFooterDot(linksRow);
+                  addFooterLink(linksRow, "الشروط", "/lshrwt-wlhkm");
+                  wrap.addView(linksRow);
+
+                  /* Brand mark */
+                  TextView brand = new TextView(activity);
+                  brand.setText("ATEEM");
+                  brand.setTextSize(10);
+                  brand.setTextColor(WARM_GRAY);
+                  brand.setTypeface(serifBold);
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP)
+                      brand.setLetterSpacing(0.25f);
+                  LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  brandParams.topMargin = dp(12);
+                  wrap.addView(brand, brandParams);
+
+                  /* Copyright */
+                  TextView copy = new TextView(activity);
+                  copy.setText("© 2026 ATEEM Luxury Store. All rights reserved.");
+                  copy.setTextSize(8);
+                  copy.setTextColor(SOFT_GRAY);
+                  LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  copyParams.topMargin = dp(4);
+                  wrap.addView(copy, copyParams);
+
+                  return wrap;
+              }
+
+              private void addFooterLink(LinearLayout parent, String text, String path) {
+                  TextView link = new TextView(activity);
+                  link.setText(text);
+                  link.setTextSize(11);
+                  link.setTextColor(WARM_GRAY);
+                  link.setPadding(dp(8), dp(4), dp(8), dp(4));
+                  link.setOnClickListener(v -> {
+                      if (categoryClickListener != null)
+                          categoryClickListener.onCategoryClick(path);
+                  });
+                  parent.addView(link);
+              }
+
+              private void addFooterDot(LinearLayout parent) {
+                  View dot = new View(activity);
+                  GradientDrawable dotBg = new GradientDrawable();
+                  dotBg.setShape(GradientDrawable.OVAL);
+                  dotBg.setColor(OLIVE);
+                  dot.setBackground(dotBg);
+                  LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(3), dp(3));
+                  params.leftMargin = dp(5); params.rightMargin = dp(5);
+                  params.gravity = Gravity.CENTER_VERTICAL;
+                  parent.addView(dot, params);
+              }
+
+              /* ============== HELPERS ============== */
+              private void roundCorners(View view, int radiusPx) {
+                  view.setClipToOutline(true);
+                  view.setOutlineProvider(new ViewOutlineProvider() {
+                      @Override
+                      public void getOutline(View v, Outline outline) {
+                          outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radiusPx);
+                      }
+                  });
+              }
+
+              private int dp(int value) {
+                  float density = activity.getResources().getDisplayMetrics().density;
+                  return (int)(value * density + 0.5f);
+              }
+
+              private static class AspectFrameLayout extends FrameLayout {
+                  private final float ratio;
+                  AspectFrameLayout(Context context, float ratio) {
+                      super(context);
+                      this.ratio = ratio;
+                  }
+                  @Override
+                  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                      int width = MeasureSpec.getSize(widthMeasureSpec);
+                      int height = (int)(width / ratio);
+                      super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+                  }
+              }
+          }
+          EOF
+
+          # ==========================================
+          # ic_nav_home.xml — Quiet Warm Gray Stroke
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_home.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M3,10.5L12,3L21,10.5V20C21,20.55 20.55,21 20,21H15V14H9V21H4C3.45,21 3,20.55 3,20V10.5Z"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_nav_shop.xml
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_shop.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M3.5,9L4.3,4.2C4.4,3.5 5,3 5.7,3H18.3C19,3 19.6,3.5 19.7,4.2L20.5,9"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M3.5,9C3.5,10.4 4.6,11.5 6,11.5C7.4,11.5 8.5,10.4 8.5,9C8.5,10.4 9.6,11.5 11,11.5C12.4,11.5 13.5,10.4 13.5,9C13.5,10.4 14.6,11.5 16,11.5C17.4,11.5 18.5,10.4 18.5,9C18.5,10.4 19.6,11.5 21,11.5"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M5,11.5V19.5C5,20.05 5.45,20.5 6,20.5H18C18.55,20.5 19,20.05 19,19.5V11.5"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M9.5,20.5V15.5C9.5,14.95 9.95,14.5 10.5,14.5H13.5C14.05,14.5 14.5,14.95 14.5,15.5V20.5"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_nav_cart.xml
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_cart.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M3,4H5.2L6.1,6H20C20.7,6 21.2,6.7 21,7.4L19.2,14.4C19,15.1 18.4,15.6 17.7,15.6H8.3C7.6,15.6 7,15.1 6.8,14.4L4.6,6"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M8.5,20 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0"
+                  android:fillColor="#8A8680" />
+              <path
+                  android:pathData="M15.5,20 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0"
+                  android:fillColor="#8A8680" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_nav_account.xml
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_nav_account.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M20,21C20,17.7 16.42,15 12,15C7.58,15 4,17.7 4,21"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:strokeLineCap="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M8,8 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"
+                  android:strokeColor="#8A8680"
+                  android:strokeWidth="1.5"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+          # ==========================================
+          # ic_header_chat.xml — Quiet Olive Chat
+          # ==========================================
+
+          cat > android/app/src/main/res/drawable/ic_header_chat.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:pathData="M21,11.5C21.0034,12.8199 20.6951,14.1219 20.1,15.3C19.3944,16.7118 18.3098,17.8992 16.9674,18.7293C15.6251,19.5594 14.0782,19.9994 12.5,20C11.1801,20.0035 9.87812,19.6951 8.7,19.1L3,21L4.9,15.3C4.30493,14.1219 3.99656,12.8199 4,11.5C4.00061,9.92179 4.44061,8.37488 5.27072,7.03258C6.10083,5.69028 7.28825,4.6056 8.7,3.90003C9.87812,3.30496 11.1801,2.99659 12.5,3.00003H13C15.0843,3.11502 17.053,3.99479 18.5291,5.47089C20.0052,6.94699 20.885,8.91568 21,11V11.5Z"
+                  android:strokeColor="#8A9A5B"
+                  android:strokeWidth="1.4"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF
+
+      # 7.5 Create chat-panel injection asset — Premium Quiet Luxury Edition
+      - name: Create ATEEM context-flags + touch-polish assets
+        run: |
+
+          mkdir -p android/app/src/main/assets/inject
+
+          cat > android/app/src/main/assets/inject/ateem_widget_inject.js << 'EOF'
+          (function ATEEM_CONTEXT_FLAGS(){
+            /* This ONLY sets the page-context flags the site's own ATEEM chat
+               widget reads (window.ATEEM_SHOULD_SHOW / ATEEM_PAGE_TYPE /
+               ATEEM_PRODUCT_SLUG). The chat widget itself already lives on
+               ateem-store.com — we must never recreate it here, since a
+               second copy with the same element ids (#ateem-panel,
+               #ateem-header-chat, etc.) collides with the real one and is
+               exactly why the bot broke. */
+            var path = window.location.pathname.replace(/\/+$/, "");
+            var isHome    = (path === "" || path === "/");
+            var isProduct = /^\/shop\/[a-z0-9-]+$/i.test(path);
+            window.ATEEM_SHOULD_SHOW = isHome || isProduct;
+            window.ATEEM_PAGE_TYPE   = isHome ? "home" : (isProduct ? "product" : "other");
+            if (isProduct) window.ATEEM_PRODUCT_SLUG = path.replace("/shop/", "");
+          })();
+          EOF
+
+          cat > android/app/src/main/assets/inject/ateem_touch_polish.js << 'EOF'
+          (function ATEEM_TOUCH_POLISH(){
+            if (window.__ateemTouchPolishInjected) return;
+            window.__ateemTouchPolishInjected = true;
+            var style = document.createElement('style');
+            style.id = 'ateem-touch-polish-style';
+            /* Quiet touch feedback across the real site — removes the large
+               default Android tap-highlight flash on section/category cards
+               and links, without touching the site's own colors or the
+               chat widget's markup in any way. */
+            style.textContent = "html,body,a,button,[role='button']{-webkit-tap-highlight-color:transparent;}"
+              + "a:active,button:active,[role='button']:active{opacity:.94;transform:scale(0.985);transition:transform .12s ease,opacity .12s ease;}";
+            document.head.appendChild(style);
+          })();
+          EOF
+
+      # 7.6 Create the fully in-app ATEEM chat widget (local asset, no website dependency)
+      - name: Create local ATEEM chat widget asset
+        run: |
+
+          mkdir -p android/app/src/main/assets/ateem_chat
+
+          cat > android/app/src/main/assets/ateem_chat/chat.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="ar" dir="rtl">
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>ATEEM Assistant</title>
+          <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,400;1,600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500&display=swap" rel="stylesheet">
+          <style>
+          html, body { margin:0; padding:0; background:transparent; height:100%; }
+          html, body, button, a, input, [role='button'] { -webkit-tap-highlight-color:transparent; }
+          button, a { touch-action:manipulation; }
+          :root {
+            --ateem-cream:      #F5F0E8;
+            --ateem-cream-deep: #EDE7DC;
+            /* Single unified gold — same shade drives the header title
+               accent AND the send / mic / sent-message elements. */
+            --ateem-gold:       #C9A464;
+            --ateem-gold-light: #DDBE86;
+            --ateem-gold-deep:  #A67C3D;
+            --ateem-gold-pale:  #E8D5C0;
+            --ateem-ink-soft:   #201C14;
+            --ateem-ink-muted:  #55503F;
+            --ateem-ink-faint:  #9A8F76;
+            --ateem-navy:       #6B7A45;
+            --ateem-navy-light: #8A9A5B;
+            /* Olive → black header gradient */
+            --ateem-olive:      #4E5A32;
+            --ateem-olive-dark: #2B3320;
+            --ateem-black:      #14130F;
+            --ateem-white:      #FFFFFF;
+            --ateem-white-soft: #FAF8F5;
+          }
+
+          @keyframes ateem-panelIn {
+            0%   { opacity:0; transform:translateY(24px) scale(0.96); }
+            100% { opacity:1; transform:translateY(0) scale(1); }
+          }
+          @keyframes ateem-panelOut {
+            0%   { opacity:1; transform:translateY(0) scale(1); }
+            100% { opacity:0; transform:translateY(16px) scale(0.97); }
+          }
+          @keyframes ateem-backdropIn { from { opacity:0; } to { opacity:1; } }
+          @keyframes ateem-backdropOut { from { opacity:1; } to { opacity:0; } }
+          @keyframes ateem-typingDot {
+            0%,80%,100% { transform:scale(.6); opacity:.3; }
+            40%          { transform:scale(1);  opacity:1; }
+          }
+          @keyframes ateem-recPulse {
+            0%,100% { box-shadow:0 0 0 0 rgba(220,60,60,0.4); }
+            50%      { box-shadow:0 0 0 8px rgba(220,60,60,0); }
+          }
+          @keyframes ateem-statusPulse {
+            0%,100% { opacity:1; transform:scale(1); }
+            50%      { opacity:.6; transform:scale(0.85); }
+          }
+          @keyframes ateem-msgAppear {
+            from { opacity:0; transform:translateY(10px) scale(0.96); }
+            to   { opacity:1; transform:translateY(0) scale(1); }
+          }
+
+          #ateem-backdrop {
+            /* No backdrop-filter: blur() on Android WebView repaints the whole
+               screen behind this layer every frame (including keyboard-open
+               and typing-caret redraws), which is what made the bot feel
+               heavy while typing or scrolling. A flat, slightly darker scrim
+               gives the same visual separation for a fraction of the cost. */
+            position:fixed; inset:0; background:rgba(43,51,32,0.32);
+            z-index:1; display:none; opacity:0;
+          }
+          #ateem-backdrop.active  { display:block; animation:ateem-backdropIn 0.4s ease forwards; }
+          #ateem-backdrop.closing { display:block; animation:ateem-backdropOut 0.3s ease forwards; }
+
+          #ateem-panel {
+            position:fixed; left:14px; right:14px; top:52px;
+            bottom:calc(max(var(--ateem-bottom-inset, 34px), var(--ateem-kb-inset, 0px)) + 16px);
+            max-width:360px; margin:auto;
+            background:var(--ateem-white-soft);
+            border-radius:26px; overflow:hidden; z-index:2;
+            display:none; flex-direction:column;
+            border:1px solid rgba(184,147,106,0.18);
+            box-shadow:0 20px 48px rgba(20,19,15,0.16), 0 2px 8px rgba(20,19,15,0.06);
+            font-family:'IBM Plex Sans Arabic',sans-serif;
+            transform-origin:top center;
+            will-change:transform, opacity;
+          }
+          #ateem-panel.active  { display:flex; animation:ateem-panelIn 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+          #ateem-panel.closing { display:flex; animation:ateem-panelOut 0.35s cubic-bezier(0.22,1,0.36,1) forwards; }
+
+          /* ═══ Slim header — ivory base with a thin olive/gold accent,
+             instead of a heavy solid-color block ═══ */
+          #ateem-panel .ateem-chat-header {
+            position:relative; overflow:hidden;
+            background:linear-gradient(135deg, var(--ateem-olive) 0%, var(--ateem-olive-dark) 55%, var(--ateem-black) 100%);
+            padding:9px 12px; min-height:46px;
+            display:flex; align-items:center; justify-content:space-between;
+            border-bottom:1px solid rgba(201,164,100,0.35);
+          }
+          #ateem-panel .ateem-chat-header::before {
+            content:''; position:absolute; top:0; left:0; right:0; height:2px;
+            background:linear-gradient(90deg, transparent, var(--ateem-gold), transparent);
+            opacity:0.8;
+          }
+          #ateem-panel .ateem-chat-header-content { display:flex; align-items:center; gap:8px; position:relative; z-index:1; }
+          #ateem-panel .ateem-chat-logo-wrap {
+            width:32px; height:32px; border-radius:50%;
+            background:var(--ateem-black);
+            display:flex; align-items:center; justify-content:center;
+            border:1.5px solid var(--ateem-gold);
+            box-shadow:0 2px 6px rgba(0,0,0,0.30);
+            flex-shrink:0; overflow:hidden;
+          }
+          #ateem-panel .ateem-chat-logo-img { width:100%; height:100%; object-fit:cover; object-position:center center; border-radius:50%; display:block; }
+          #ateem-panel .ateem-chat-title {
+            font-family:'Montserrat',sans-serif; font-size:11.5px; font-weight:600;
+            color:var(--ateem-gold-light); letter-spacing:.3px;
+          }
+          #ateem-panel .ateem-chat-status-dot {
+            display:inline-block; width:5px; height:5px; border-radius:50%;
+            background:#5DAA5A; margin-right:4px; box-shadow:0 0 5px rgba(93,170,90,0.45);
+            animation:ateem-statusPulse 2s ease-in-out infinite;
+          }
+          #ateem-panel .ateem-chat-sub {
+            font-size:8px; color:var(--ateem-gold); margin-top:1px;
+            letter-spacing:.8px; font-family:'Montserrat',sans-serif; opacity:0.85;
+          }
+          #ateem-panel .ateem-chat-close {
+            width:24px; height:24px; border:1.5px solid rgba(201,164,100,0.45); border-radius:50%;
+            background:rgba(255,255,255,0.06); color:var(--ateem-gold-light); font-size:10px;
+            cursor:pointer; position:relative; z-index:1; transition:transform .18s ease, background .18s ease;
+            display:flex; align-items:center; justify-content:center;
+          }
+          #ateem-panel .ateem-chat-close:active { transform:scale(0.88); background:rgba(255,255,255,0.14); }
+
+          #ateem-panel #ateem-chat {
+            flex:1; overflow-y:auto; padding:14px 14px;
+            display:flex; flex-direction:column; gap:10px;
+            scrollbar-width:thin; scrollbar-color:rgba(184,147,106,.22) transparent;
+            background:linear-gradient(180deg, var(--ateem-white-soft) 0%, var(--ateem-cream) 100%);
+            scroll-behavior:smooth; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+          }
+          #ateem-panel #ateem-chat::-webkit-scrollbar { width:3px; }
+          #ateem-panel #ateem-chat::-webkit-scrollbar-thumb { background:rgba(184,147,106,.25); border-radius:10px; }
+          #ateem-panel #ateem-chat::-webkit-scrollbar-track { background:transparent; }
+
+          #ateem-panel .ateem-msg-wrap { display:flex; flex-direction:column; gap:3px; max-width:88%; animation:ateem-msgAppear .4s cubic-bezier(0.22,1,0.36,1) both; }
+          #ateem-panel .ateem-msg-wrap.ateem-user { align-self:flex-start; margin-left:auto; }
+          #ateem-panel .ateem-msg-wrap.ateem-bot  { align-self:flex-end; margin-right:auto; }
+          #ateem-panel .ateem-msg-time { font-size:8.5px; color:var(--ateem-ink-faint); padding:0 5px; opacity:.65; font-family:'Montserrat',sans-serif; letter-spacing:.3px; }
+
+          #ateem-panel .ateem-welcome-banner { text-align:center; padding:6px 0 2px; }
+          #ateem-panel .ateem-welcome-banner .ateem-welcome-text {
+            font-family:'Cormorant Garamond', serif; font-style:italic; font-size:14px;
+            color:var(--ateem-ink-muted); letter-spacing:.5px; line-height:1.6;
+          }
+          #ateem-panel .ateem-welcome-banner .ateem-welcome-time { font-size:8.5px; color:var(--ateem-ink-faint); margin-top:4px; font-family:'Montserrat',sans-serif; }
+
+          #ateem-panel .ateem-bot-msg {
+            background:var(--ateem-cream); color:var(--ateem-ink-soft);
+            padding:11px 14px; border-radius:18px 18px 18px 5px; line-height:1.8; max-width:100%;
+            border:1px solid rgba(201,164,100,0.20);
+            box-shadow:0 2px 8px rgba(20,19,15,0.05);
+            font-size:12.5px; direction:rtl; position:relative;
+          }
+
+          /* Unified gold — identical shade to the header title/accent —
+             used for the send button, mic button and sent (user) bubbles. */
+          #ateem-panel .ateem-user-msg {
+            background:linear-gradient(135deg, var(--ateem-gold-light) 0%, var(--ateem-gold) 55%, var(--ateem-gold-deep) 100%);
+            color:var(--ateem-black);
+            padding:11px 14px; border-radius:18px 18px 5px 18px; max-width:100%; font-size:12.5px; direction:rtl;
+            font-weight:500;
+            box-shadow:0 3px 10px rgba(166,124,61,0.25);
+            border:1px solid rgba(255,255,255,0.25); position:relative;
+          }
+
+          #ateem-panel .ateem-quick-replies { display:flex; flex-wrap:wrap; gap:6px; margin-top:3px; padding:0 3px; direction:rtl; }
+          #ateem-panel .ateem-quick-chip {
+            font-size:10.5px; font-weight:500; color:var(--ateem-ink-soft); background:var(--ateem-white);
+            border:1.5px solid rgba(201,164,100,0.35); padding:6px 12px; border-radius:22px; cursor:pointer; white-space:nowrap;
+            font-family:'IBM Plex Sans Arabic',sans-serif; transition:.25s ease; box-shadow:0 2px 6px rgba(20,19,15,0.04);
+          }
+          #ateem-panel .ateem-quick-chip:active { transform:translateY(0) scale(0.96); }
+
+          #ateem-panel .ateem-products-wrap { display:flex; flex-direction:column; gap:8px; max-width:100%; margin-top:3px; }
+          #ateem-panel .ateem-product-card {
+            display:flex; align-items:center; gap:10px; background:var(--ateem-cream);
+            border:1px solid rgba(201,164,100,0.22); border-radius:16px; padding:10px;
+            box-shadow:0 2px 8px rgba(20,19,15,0.05);
+            direction:rtl; text-decoration:none; transition:.25s ease; position:relative; overflow:hidden;
+          }
+          #ateem-panel .ateem-product-card::before {
+            content:''; position:absolute; top:0; left:0; right:0; height:2.5px;
+            background:linear-gradient(90deg, var(--ateem-gold-light), var(--ateem-gold), var(--ateem-gold-light)); opacity:0.7;
+          }
+          #ateem-panel .ateem-product-card:active { transform:scale(0.98); }
+          #ateem-panel .ateem-product-img { width:50px; height:50px; border-radius:10px; object-fit:cover; flex-shrink:0; border:1.5px solid rgba(201,164,100,0.20); background:#eee; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
+          #ateem-panel .ateem-product-info { flex:1; min-width:0; }
+          #ateem-panel .ateem-product-name { font-size:12px; font-weight:600; color:var(--ateem-ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          #ateem-panel .ateem-product-cat { font-size:9.5px; color:var(--ateem-ink-muted); margin-top:1px; }
+          #ateem-panel .ateem-product-price { font-size:12px; font-weight:700; color:var(--ateem-gold-deep); margin-top:3px; font-family:'Montserrat',sans-serif; }
+          #ateem-panel .ateem-product-btn {
+            font-size:9.5px; font-weight:600; background:var(--ateem-black);
+            color:var(--ateem-gold-light); border:1px solid var(--ateem-gold); padding:6px 10px; border-radius:8px;
+            white-space:nowrap; flex-shrink:0; transition:.2s ease;
+          }
+
+          #ateem-panel .ateem-error-msg {
+            background:rgba(220,60,60,0.04); color:#a04040; padding:11px 14px; border-radius:18px 18px 18px 5px;
+            border:1.5px solid rgba(220,60,60,0.12); font-size:12px; line-height:1.7; direction:rtl;
+            background:linear-gradient(135deg, rgba(220,60,60,0.04), rgba(220,60,60,0.01));
+          }
+          #ateem-panel .ateem-error-retry {
+            display:inline-flex; align-items:center; gap:5px; margin-top:6px; padding:6px 11px; background:rgba(220,60,60,0.08);
+            border:1.5px solid rgba(220,60,60,0.18); border-radius:8px; color:#a04040; font-size:10.5px; font-weight:500; cursor:pointer; transition:.2s ease;
+          }
+
+          #ateem-panel .ateem-scroll-bottom {
+            position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+            width:32px; height:32px; border-radius:50%; background:var(--ateem-white);
+            border:1.5px solid rgba(184,147,106,0.22); box-shadow:0 4px 14px rgba(90,60,20,0.10);
+            display:flex; align-items:center; justify-content:center; cursor:pointer;
+            opacity:0; pointer-events:none; transition:.3s ease; z-index:5; color:var(--ateem-gold); font-size:13px;
+          }
+          #ateem-panel .ateem-scroll-bottom.visible { opacity:1; pointer-events:auto; }
+
+          #ateem-panel .ateem-input-wrap {
+            display:flex; align-items:center; gap:8px; padding:10px 12px 12px; background:var(--ateem-white);
+            border-top:1px solid rgba(184,147,106,0.12); flex-shrink:0; position:relative;
+          }
+          #ateem-panel #ateem-input {
+            flex:1; min-width:0; height:36px; border:1.5px solid rgba(184,147,106,0.16); border-radius:12px; padding:0 12px;
+            background:var(--ateem-white-soft); color:var(--ateem-ink-soft); font-family:'IBM Plex Sans Arabic',sans-serif;
+            font-size:12.5px; outline:none; direction:rtl; transition:.25s ease; box-sizing:border-box;
+          }
+          #ateem-panel #ateem-input::placeholder { color:rgba(90,60,20,0.30); font-weight:300; }
+          #ateem-panel #ateem-input:disabled { opacity:.50; cursor:not-allowed; }
+          #ateem-panel .ateem-send {
+            width:34px; height:34px; min-width:34px; flex-shrink:0; border-radius:10px;
+            background:linear-gradient(135deg, var(--ateem-gold-light) 0%, var(--ateem-gold) 55%, var(--ateem-gold-deep) 100%);
+            color:var(--ateem-black);
+            cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.25s ease;
+            box-shadow:0 3px 8px rgba(166,124,61,0.22); border:1.5px solid rgba(255,255,255,0.25);
+            padding:0; touch-action:manipulation; position:relative; z-index:10;
+          }
+          #ateem-panel .ateem-send:active { transform:scale(0.93) translateY(0); }
+          #ateem-panel .ateem-send svg { width:15px; height:15px; pointer-events:none; }
+          #ateem-panel .ateem-voice {
+            width:34px; height:34px; min-width:34px; flex-shrink:0; border-radius:10px;
+            background:linear-gradient(135deg, var(--ateem-gold-light) 0%, var(--ateem-gold) 55%, var(--ateem-gold-deep) 100%);
+            color:var(--ateem-black); cursor:pointer; display:flex;
+            align-items:center; justify-content:center; border:1.5px solid rgba(255,255,255,0.25); transition:.25s ease;
+            box-shadow:0 3px 8px rgba(166,124,61,0.22); padding:0; touch-action:manipulation; position:relative; z-index:10;
+          }
+          #ateem-panel .ateem-voice.recording {
+            background:linear-gradient(135deg,#e85555,#c93030); color:white; border-color:rgba(255,100,100,0.40);
+            animation:ateem-recPulse 1s ease infinite;
+          }
+          #ateem-panel .ateem-voice svg { width:14px; height:14px; pointer-events:none; }
+
+          #ateem-panel .ateem-typing {
+            display:flex; gap:4px; padding:10px 14px; background:var(--ateem-white);
+            border-radius:18px 18px 18px 5px; max-width:60px; border:1px solid rgba(184,147,106,0.10);
+            box-shadow:0 2px 8px rgba(90,60,20,0.04);
+          }
+          #ateem-panel .ateem-typing span {
+            width:5.5px; height:5.5px; border-radius:50%; background:var(--ateem-gold); opacity:.4;
+            animation:ateem-typingDot 1.4s ease infinite;
+          }
+          #ateem-panel .ateem-typing span:nth-child(2) { animation-delay:.2s; }
+          #ateem-panel .ateem-typing span:nth-child(3) { animation-delay:.4s; }
+
+          @media (prefers-reduced-motion: reduce) {
+            #ateem-panel *, #ateem-panel *::before, #ateem-panel *::after {
+              animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important;
+            }
+          }
+          </style>
+          </head>
+          <body>
+
+          <div id="ateem-backdrop"></div>
+
+          <div id="ateem-panel">
+            <div class="ateem-chat-header">
+              <div class="ateem-chat-header-content">
+                <div class="ateem-chat-logo-wrap">
+                  <img class="ateem-chat-logo-img" src="https://i.ibb.co/F4vhYp7Y/file-00000000b6f081f490aa2899443132bd.png" alt="ATEEM" loading="lazy">
+                </div>
+                <div>
+                  <div class="ateem-chat-title">ATEEM Assistant <span class="ateem-chat-status-dot"></span></div>
+                  <div class="ateem-chat-sub">✦ Luxury AI Concierge ✦</div>
+                </div>
+              </div>
+              <button onclick="closeAteemPanel()" class="ateem-chat-close" aria-label="إغلاق">✕</button>
+            </div>
+
+            <div style="position:relative; flex:1; overflow:hidden; display:flex; flex-direction:column;">
+              <div id="ateem-chat"></div>
+              <div class="ateem-scroll-bottom" id="ateem-scroll-bottom" onclick="scrollAteemToBottom()">↓</div>
+            </div>
+
+            <div class="ateem-input-wrap">
+              <button id="ateem-voice-btn" class="ateem-voice" onclick="toggleVoice()" aria-label="تسجيل صوتي">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"></rect>
+                  <path d="M5 10a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                  <line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+                </svg>
+              </button>
+              <input type="text" id="ateem-input" placeholder="اكتب رسالتك هنا..." autocomplete="off" aria-label="رسالتك">
+              <button onclick="sendAteemMessage()" class="ateem-send" aria-label="إرسال">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <polygon points="5,12 19,4 19,20" fill="currentColor"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <script>
+          /* Fully in-app — always uses the "home" welcome/quick-replies since
+             this overlay isn't tied to a specific product page. */
+          window.ATEEM_PAGE_TYPE = "home";
+          const pageType = "home";
+
+          const ATEEM_PAGE_CONFIG = {
+            home: { welcome:"✦ أهلاً بك في ATEEM، كيف يمكنني خدمتك؟" }
+          };
+          const pageCfg = ATEEM_PAGE_CONFIG.home;
+
+          const ATEEM_QUICK_REPLIES = {
+            home: ["عطور فاخرة", "بدلات رسمية", "أحذية رياضية", "سياسة التوصيل"]
+          };
+
+          const ATEEM_PRODUCTS = [
+            { id:"far-away-glamour-11", name:"Far Away Glamour", category:"عطور", price:68000, currency:"SDG", img:"https://i.ibb.co/0jqnkzLd/Gemini-Generated-Image-tndg97tndg97tndg.png", url:"https://ateem-store.odoo.com/shop/far-away-glamour-11" },
+            { id:"dior-sauvage-8", name:"Dior Sauvage", category:"عطور", price:385000, currency:"SDG", img:"https://i.ibb.co/gFm2Kvpz/Gemini-Generated-Image-yq7holyq7holyq7h.png", url:"https://ateem-store.odoo.com/shop/dior-sauvage-8" },
+            { id:"chance-chanel-13", name:"Chance Chanel", category:"عطور", price:60000, currency:"SDG", img:"https://i.ibb.co/TxsHb2L5/Gemini-Generated-Image-dd1b0ldd1b0ldd1b.png", url:"https://ateem-store.odoo.com/shop/chance-chanel-13" },
+            { id:"seoul-12", name:"Seoul", category:"عطور", price:75000, currency:"SDG", img:"https://i.ibb.co/b539RH5w/Gemini-Generated-Image-54lzu254lzu254lz.png", url:"https://ateem-store.odoo.com/shop/seoul-12" },
+            { id:"navy-motion-runner-15", name:"Navy Motion Runner", category:"أحذية", price:130000, currency:"SDG", img:"https://i.ibb.co/NdhXGwMy/Gemini-Generated-Image-mp73glmp73glmp73.png", url:"https://ateem-store.odoo.com/shop/navy-motion-runner-15" },
+            { id:"urban-mint-air-sneakers-14", name:"Urban Mint Air Sneakers", category:"أحذية", price:94000, currency:"SDG", img:"https://i.ibb.co/W4VCnsMh/file-000000009718724398109ae77dfa02a0.png", url:"https://ateem-store.odoo.com/shop/urban-mint-air-sneakers-14" },
+            { id:"pure-white-chunky-runner-17", name:"Pure White Chunky Runner", category:"أحذية", price:115000, currency:"SDG", img:"https://i.ibb.co/Kz9p3R3n/file-00000000a4fc471fba6dd74fc5eb45986.png", url:"https://ateem-store.odoo.com/shop/pure-white-chunky-runner-17" },
+            { id:"forest-classic-street-16", name:"Forest Classic Street", category:"أحذية", price:105000, currency:"SDG", img:"https://i.ibb.co/GmrTzxn/Gemini-Generated-Image-w4rqzdw4rqzdw4rq.png", url:"https://ateem-store.odoo.com/shop/forest-classic-street-16" },
+            { id:"royal-tailored-suit-19", name:"Royal Tailored Suit", category:"بدلات", price:330000, currency:"SDG", img:"https://i.ibb.co/hJDmt2p4/file-000000009cd071f498b65799d5b81db8.png", url:"https://ateem-store.odoo.com/shop/royal-tailored-suit-19" },
+            { id:"midnight-royal-suit-20", name:"Midnight Royal Suit", category:"بدلات", price:330000, currency:"SDG", img:"https://i.ibb.co/xtrVVgrK/file-0000000020fc720a94ed27307981a08d.png", url:"https://ateem-store.odoo.com/shop/midnight-royal-suit-20" },
+            { id:"silver-prestige-suit-21", name:"Silver Prestige Suit", category:"بدلات", price:330000, currency:"SDG", img:"https://i.ibb.co/cKfTv4WW/file-000000004e207246924306b0c6106f88.png", url:"https://ateem-store.odoo.com/shop/silver-prestige-suit-21" },
+            { id:"black-elite-tuxedo-22", name:"Black Elite Tuxedo", category:"بدلات", price:330000, currency:"SDG", img:"https://i.ibb.co/MyJKyWn2/file-00000000bae071f499b75926be1ffeeb.png", url:"https://ateem-store.odoo.com/shop/black-elite-tuxedo-22" },
+            { id:"pure-elegance-shirt-18", name:"Pure Elegance Shirt", category:"قمصان", price:60000, currency:"SDG", img:"https://i.ibb.co/DHR9VbjS/file-00000000719471f49d51c75a76277a0f.png", url:"https://ateem-store.odoo.com/shop/pure-elegance-shirt-18" },
+            { id:"summer-linen-shirt-24", name:"Summer Linen Shirt", category:"قمصان", price:72000, currency:"SDG", img:"https://i.ibb.co/DgWfmj3K/file-00000000c59071f4b369894585670f81.png", url:"https://ateem-store.odoo.com/shop/summer-linen-shirt-24" },
+            { id:"tropical-breeze-shirt-25", name:"Tropical Breeze Shirt", category:"قمصان", price:55000, currency:"SDG", img:"https://i.ibb.co/4wDp1dNm/file-00000000830c71f48af8c852c4e333a4.png", url:"https://ateem-store.odoo.com/shop/tropical-breeze-shirt-25" },
+            { id:"olive-botanica-shirt-29", name:"Olive Botanica Shirt", category:"قمصان", price:95000, currency:"SDG", img:"https://i.ibb.co/SDsmMp3Y/file-000000006e8471f4abdb0224e3744601.png", url:"https://ateem-store.odoo.com/shop/olive-botanica-shirt-29" },
+            { id:"prestige-olive-tee-28", name:"Prestige Olive Tee", category:"تيشيرتات", price:70000, currency:"SDG", img:"https://i.ibb.co/LzQ1Vq1D/file-00000000e44871f48226a06acb6d5829.png", url:"https://ateem-store.odoo.com/shop/prestige-olive-tee-28" },
+            { id:"modern-tee-26", name:"Modern Tee", category:"تيشيرتات", price:48000, currency:"SDG", img:"https://i.ibb.co/4gS6fshQ/file-000000008ffc71f4a6651f40a6dcee06.png", url:"https://ateem-store.odoo.com/shop/modern-tee-26" },
+            { id:"botanical-luxe-tee-30", name:"Botanical Luxe Tee", category:"تيشيرتات", price:70000, currency:"SDG", img:"https://i.ibb.co/Kj3sX5JJ/file-00000000681871f48d2db3d9a7aecfa4.png", url:"https://ateem-store.odoo.com/shop/botanical-luxe-tee-30" },
+            { id:"elite-performance-tee-27", name:"Elite Performance Tee", category:"تيشيرتات", price:66000, currency:"SDG", img:"https://i.ibb.co/cSY6t7m5/file-00000000ce0871f4afa59ce040de4e8c.png", url:"https://ateem-store.odoo.com/shop/elite-performance-tee-27" },
+            { id:"luxury-men-s-watch-32", name:"Luxury Men's Watch", category:"إكسسوارات", price:110000, currency:"SDG", img:"https://i.ibb.co/7Np7jwyy/file-00000000aaa072439c6791af42215f0d.png", url:"https://ateem-store.odoo.com/shop/luxury-men-s-watch-32" },
+            { id:"luxury-men-s-sunglasses-31", name:"Luxury Men's Sunglasses", category:"إكسسوارات", price:36000, currency:"SDG", img:"https://i.ibb.co/8nxYSGv1/file-000000003158724396a2ced32048b52a.png", url:"https://ateem-store.odoo.com/shop/luxury-men-s-sunglasses-31" }
+          ];
+
+          const ATEEM_POLICY_TEXT = `
+          سياسات متجر ATEEM:
+          - التوصيل: داخل المدن الرئيسية 2-4 أيام عمل، وباقي المناطق 4-7 أيام عمل.
+          - الاستبدال: خلال 14 يومًا من تاريخ الاستلام بشرط الحالة الأصلية مع الفاتورة.
+          - الترجيع: خلال 7 أيام من الاستلام للمنتجات غير المستخدمة.
+          `;
+
+          const ATEEM_PROXY_URL = "https://ateem-proxy.ahmedateem23.workers.dev/";
+          const GROQ_MODEL = "openai/gpt-oss-120b";
+
+          function fmtPrice(p) { return p.price.toLocaleString('en-US') + " " + p.currency; }
+          function nowTime() { return new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' }); }
+
+          function buildSystemPrompt() {
+            const productLines = ATEEM_PRODUCTS.map(p =>
+              `- [${p.id}] ${p.name} | الفئة: ${p.category} | السعر: ${fmtPrice(p)}`
+            ).join("\n");
+            return `أنت مساعد ذكي فاخر لمتجر ATEEM للأزياء الراقية.
+          تتحدث باللغة العربية بأسلوب راقٍ ومحترف ودافئ.
+          اجعل ردودك موجزة وأنيقة — لا تتجاوز 3-4 أسطر عادةً.
+          قائمة المنتجات:
+          ${productLines}
+          ${ATEEM_POLICY_TEXT}
+          تعليمات: عند ترشيح منتج اذكر رمزه [id] بين أقواس مربعة. لا تخترع منتجات غير موجودة.`;
+          }
+
+          let panelIsOpen = false;
+          let lastFailedMsg = null;
+          const conversationHistory = [];
+          const panel     = document.getElementById('ateem-panel');
+          const chat      = document.getElementById('ateem-chat');
+          const inputEl   = document.getElementById('ateem-input');
+          const scrollBtn = document.getElementById('ateem-scroll-bottom');
+          const voiceBtn  = document.getElementById('ateem-voice-btn');
+          const backdrop  = document.getElementById('ateem-backdrop');
+
+          function notifyNativeClosed() {
+            if (window.AteemNative && window.AteemNative.onCloseRequested) {
+              window.AteemNative.onCloseRequested();
+            }
+          }
+
+          /* Called by the native Android side (NativeChatOverlay.show()) every
+             time the WebView is revealed — this is the ONLY way the panel
+             opens, there is no in-page button since the native header owns
+             that button. */
+          /* Keep the panel's real bottom edge locked to the visible viewport
+             (not just the nav-bar inset from native), so the keyboard can
+             never push the header off the top of the screen. */
+          if (window.visualViewport) {
+            const vv = window.visualViewport;
+            let vvTicking = false;
+            function syncKeyboardInset() {
+              vvTicking = false;
+              const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+              document.documentElement.style.setProperty('--ateem-kb-inset', kb + 'px');
+            }
+            function queueSync() { if (!vvTicking) { vvTicking = true; requestAnimationFrame(syncKeyboardInset); } }
+            vv.addEventListener('resize', queueSync);
+            vv.addEventListener('scroll', queueSync);
+            syncKeyboardInset();
+          }
+
+          function openPanel() {
+            panelIsOpen = true;
+            panel.classList.remove('closing');
+            panel.classList.add('active');
+            if (backdrop) { backdrop.classList.remove('closing'); backdrop.classList.add('active'); }
+            setTimeout(() => { inputEl.focus(); scrollAteemToBottom(true); }, 300);
+          }
+          window.ateemOpenPanel = openPanel;
+
+          function closeAteemPanel() {
+            panelIsOpen = false;
+            panel.classList.remove('active');
+            panel.classList.add('closing');
+            if (backdrop) { backdrop.classList.remove('active'); backdrop.classList.add('closing'); }
+            window.speechSynthesis && window.speechSynthesis.cancel();
+            setTimeout(() => {
+              panel.classList.remove('closing');
+              if (backdrop) backdrop.classList.remove('closing');
+              notifyNativeClosed();
+            }, 350);
+          }
+          window.closeAteemPanel = closeAteemPanel;
+
+          if (backdrop) backdrop.addEventListener('click', () => { if (panelIsOpen) closeAteemPanel(); });
+          panel.addEventListener('click', (e) => e.stopPropagation());
+          document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panelIsOpen) closeAteemPanel(); });
+
+          function scrollAteemToBottom(instant) {
+            chat.scrollTo({ top: chat.scrollHeight, behavior: instant ? 'auto' : 'smooth' });
+          }
+          window.scrollAteemToBottom = scrollAteemToBottom;
+          chat.addEventListener('scroll', () => {
+            const nearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 50;
+            if (scrollBtn) scrollBtn.classList.toggle('visible', !nearBottom);
+          });
+
+          function renderProductCard(p) {
+            return `<a href="${p.url}" class="ateem-product-card" target="_blank" rel="noopener">
+              <img class="ateem-product-img" src="${p.img}" alt="${p.name}" loading="lazy" onerror="this.style.visibility='hidden'">
+              <div class="ateem-product-info">
+                <div class="ateem-product-name">${p.name}</div>
+                <div class="ateem-product-cat">${p.category}</div>
+                <div class="ateem-product-price">${fmtPrice(p)}</div>
+              </div>
+              <div class="ateem-product-btn">عرض المنتج</div>
+            </a>`;
+          }
+
+          function renderQuickChips() {
+            const replies = ATEEM_QUICK_REPLIES.home;
+            const chips = replies.map(r =>
+              `<span class="ateem-quick-chip" onclick="quickAteemReply('${r.replace(/'/g, "\\'")}')">${r}</span>`
+            ).join('');
+            return `<div class="ateem-quick-replies">${chips}</div>`;
+          }
+          window.quickAteemReply = function (text) {
+            inputEl.value = text;
+            sendAteemMessage();
+          };
+
+          function renderBotReply(text, includeQuickReplies) {
+            const idsFound = [];
+            const cleanText = text.replace(/\[([a-z0-9-]+)\]/gi, (m, id) => {
+              if (ATEEM_PRODUCTS.find(p => p.id === id)) idsFound.push(id);
+              return "";
+            }).replace(/\s{2,}/g, " ").trim();
+
+            let html = `<div class="ateem-msg-wrap ateem-bot">
+              <div class="ateem-bot-msg">${cleanText.replace(/\n/g,'<br>')}</div>
+              <div class="ateem-msg-time">${nowTime()}</div>
+            </div>`;
+
+            const uniqueIds = [...new Set(idsFound)];
+            if (uniqueIds.length) {
+              const cards = uniqueIds.map(id => ATEEM_PRODUCTS.find(p => p.id === id)).filter(Boolean).map(renderProductCard).join("");
+              html += `<div class="ateem-products-wrap">${cards}</div>`;
+            }
+            if (includeQuickReplies) html += renderQuickChips();
+            return html;
+          }
+
+          function renderUserMsg(text) {
+            return `<div class="ateem-msg-wrap ateem-user">
+              <div class="ateem-user-msg">${text.replace(/\n/g,'<br>')}</div>
+              <div class="ateem-msg-time">${nowTime()}</div>
+            </div>`;
+          }
+
+          function renderError(errMsg) {
+            return `<div class="ateem-msg-wrap ateem-bot">
+              <div class="ateem-error-msg">
+                ⚠️ تعذّر الاتصال بالخادم<br>
+                <small style="opacity:.6; font-size:10.5px">${errMsg}</small>
+                <div class="ateem-error-retry" onclick="retryAteemLast()">إعادة المحاولة</div>
+              </div>
+            </div>`;
+          }
+          window.retryAteemLast = function () {
+            if (lastFailedMsg) { inputEl.value = lastFailedMsg; sendAteemMessage(); }
+          };
+
+          async function askGroq(userMessage) {
+            conversationHistory.push({ role:"user", content:userMessage });
+            const MAX_HISTORY = 8;
+            const trimmedHistory = conversationHistory.slice(-MAX_HISTORY);
+
+            const response = await fetch(ATEEM_PROXY_URL, {
+              method:"POST",
+              headers:{ "Content-Type":"application/json" },
+              body:JSON.stringify({ model:GROQ_MODEL,
+                messages:[{ role:"system", content:buildSystemPrompt() }, ...trimmedHistory],
+                max_tokens:350, temperature:0.7 })
+            });
+            if (!response.ok) { const e=await response.json().catch(()=>({})); throw new Error(e.error?.message||`HTTP ${response.status}`); }
+            const data  = await response.json();
+            const reply = data.choices?.[0]?.message?.content?.trim() || "عذراً، لم أتمكن من الرد الآن.";
+            conversationHistory.push({ role:"assistant", content:reply });
+            return reply;
+          }
+
+          async function sendAteemMessage() {
+            const msg = inputEl.value.trim();
+            if (!msg) return;
+            inputEl.value = "";
+            lastFailedMsg = msg;
+            inputEl.disabled = true;
+
+            chat.insertAdjacentHTML('beforeend', renderUserMsg(msg));
+            scrollAteemToBottom();
+
+            const tid = "t_" + Date.now();
+            chat.insertAdjacentHTML('beforeend', `<div id="${tid}" class="ateem-typing"><span></span><span></span><span></span></div>`);
+            scrollAteemToBottom();
+
+            try {
+              const reply = await askGroq(msg);
+              document.getElementById(tid)?.remove();
+              chat.insertAdjacentHTML('beforeend', renderBotReply(reply, false));
+              speakText(reply);
+            } catch(e) {
+              document.getElementById(tid)?.remove();
+              chat.insertAdjacentHTML('beforeend', renderError(e.message));
+            }
+            scrollAteemToBottom();
+            inputEl.disabled = false; inputEl.focus();
+          }
+          window.sendAteemMessage = sendAteemMessage;
+
+          inputEl.addEventListener('keypress', e => { if (e.key === 'Enter') sendAteemMessage(); });
+          const ateemSendBtn = document.querySelector('.ateem-send');
+          if (ateemSendBtn) ateemSendBtn.addEventListener('click', sendAteemMessage);
+
+          let recognition = null;
+          let isRecording  = false;
+
+          function toggleVoice() { isRecording ? stopVoice() : startVoice(); }
+          window.toggleVoice = toggleVoice;
+
+          function startVoice() {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) { alert('متصفحك لا يدعم التسجيل الصوتي'); return; }
+            recognition = new SR();
+            recognition.lang = 'ar-SA';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.onstart = () => {
+              isRecording = true;
+              if (voiceBtn) voiceBtn.classList.add('recording');
+              inputEl.placeholder = '🎙 جارٍ التسجيل...';
+            };
+            recognition.onresult = (e) => {
+              inputEl.value = e.results[0][0].transcript;
+              stopVoice();
+              sendAteemMessage();
+            };
+            recognition.onerror = () => stopVoice();
+            recognition.onend   = () => stopVoice();
+            recognition.start();
+          }
+
+          function stopVoice() {
+            isRecording = false;
+            if (recognition) { recognition.stop(); recognition = null; }
+            if (voiceBtn) voiceBtn.classList.remove('recording');
+            inputEl.placeholder = 'اكتب رسالتك هنا...';
+          }
+
+          async function speakText(text) {
+            const clean = text.replace(/<[^>]+>/g, '').replace(/[✦◆\[\]]/g, '').trim();
+            if (!clean) return;
+            try {
+              const response = await fetch(ATEEM_PROXY_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: "tts", text: clean })
+              });
+              if (!response.ok) {
+                const errText = await response.text();
+                throw new Error("TTS HTTP " + response.status + ": " + errText);
+              }
+              const audioBlob = await response.blob();
+              const audioUrl  = URL.createObjectURL(audioBlob);
+              const audio     = new Audio(audioUrl);
+              audio.play().catch(err => console.warn("Audio play blocked:", err));
+              audio.onended = () => URL.revokeObjectURL(audioUrl);
+            } catch (err) {
+              console.warn("ElevenLabs TTS failed:", err);
+            }
+          }
+
+          function initAteemWelcome() {
+            chat.innerHTML = `
+              <div class="ateem-welcome-banner">
+                <div class="ateem-welcome-text">${pageCfg.welcome}</div>
+                <div class="ateem-welcome-time">${nowTime()}</div>
+              </div>
+            ` + renderQuickChips();
+          }
+          initAteemWelcome();
+          </script>
+          </body>
+          </html>
+          EOF
+
+      # 8. Sync Capacitor
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+
+      # 8.5 Add Glide dependency
+      - name: Add Glide dependency
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+          MARKER = "ATEEM_GLIDE_DEPENDENCY"
+          if MARKER not in text:
+              addition = """
+
+          // """ + MARKER + """ - do not remove this marker comment
+
+          dependencies {
+
+              implementation 'com.github.bumptech.glide:glide:4.16.0'
+
+              annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
+
+              implementation 'androidx.core:core:1.12.0'
+          }
+
+          """
+              text += addition
+              path.write_text(text)
+              print("Glide dependency appended.")
+          else:
+              print("Marker already present - skipping.")
+          PY
+
+
+      # 9. Restore release keystore
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode \
+            > android/app/release.keystore
+
+
+      # 10. Verify keystore
+      - name: Verify keystore
+        run: |
+          test -s android/app/release.keystore
+          ls -lh android/app/release.keystore
+          file android/app/release.keystore
+
+
+      # 11. Test release keystore
+      - name: Test release keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          keytool -list \
+            -keystore android/app/release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias ateemrelease
+
+
+      # 12. Configure release signing
+      - name: Configure release signing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+          MARKER = "ATEEM_RELEASE_SIGNING_CONFIG"
+          if MARKER not in text:
+              signing = """
+
+          // """ + MARKER + """ - do not remove this marker comment
+
+          android {
+
+              signingConfigs {
+
+                  ateemRelease {
+
+                      storeFile file(
+                          "release.keystore"
+                      )
+
+                      storePassword System.getenv(
+                          "ATEEM_STORE_PASSWORD"
+                      )
+
+                      keyAlias System.getenv(
+                          "ATEEM_KEY_ALIAS"
+                      )
+
+                      keyPassword System.getenv(
+                          "ATEEM_KEY_PASSWORD"
+                      )
+                  }
+              }
+
+
+              buildTypes {
+
+                  release {
+
+                      signingConfig signingConfigs.ateemRelease
+
+                      minifyEnabled false
+                  }
+              }
+          }
+
+          """
+              text += signing
+              path.write_text(text)
+              print("Release signing config appended.")
+          else:
+              print("Marker already present - skipping.")
+          print("---- build.gradle tail ----")
+          print(path.read_text()[-1500:])
+          PY
+
+
+      # 13. Build release APK
+      - name: Build release APK
+        working-directory: android
+        env:
+          ATEEM_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ATEEM_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ATEEM_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "Checking signing configuration..."
+          test -n "$ATEEM_STORE_PASSWORD"
+          test -n "$ATEEM_KEY_ALIAS"
+          test -n "$ATEEM_KEY_PASSWORD"
+          test -s app/release.keystore
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --stacktrace
+
+
+      # 13.5 List build outputs
+      - name: List build outputs
+        run: |
+          echo "=== Searching for any APK files produced ==="
+          find android/app/build/outputs -type f -name "*.apk" 2>/dev/null || true
+          echo "=== Full outputs directory tree ==="
+          find android/app/build/outputs -type f 2>/dev/null || echo "outputs directory does not exist or is empty"
+
+
+      # 14. Upload APK
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ateem-store-apk-premium
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
