@@ -157,6 +157,13 @@ export default function App() {
     hideSystemBars();
   }, [menuOpen]);
 
+  // إعادة فرض الوضع الغامر (immersive) دورياً، لأن Android بيرجّع إظهار
+  // الأشرطة تلقائياً مع أي تفاعل نظام (سحبة، تنبيه، تغيير تركيز) مش بس فتح Modal
+  useEffect(() => {
+    const interval = setInterval(hideSystemBars, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   // طلب إذن الإشعارات بشكل غير مزعج عند أول فتح للتطبيق
   useEffect(() => {
     (async () => {
@@ -173,11 +180,11 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar hidden style="dark" />
+      <StatusBar hidden translucent backgroundColor="transparent" style="dark" />
       {/* ===== Header ===== */}
       <View style={styles.navbar}>
         <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.menuBtn}>
-          <LineIcon name="menu" size={22} color={COLORS.charcoal} />
+          <LineIcon name="menu" size={28} color={COLORS.charcoal} />
         </TouchableOpacity>
 
         <View style={styles.brandWrap}>
@@ -187,7 +194,7 @@ export default function App() {
 
         <View style={styles.navIcons}>
           <TouchableOpacity>
-            <LineIcon name="bag" size={20} color={COLORS.charcoal} />
+            <LineIcon name="bag" size={26} color={COLORS.charcoal} />
             {cartCount > 0 && (
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>{cartCount}</Text>
@@ -202,7 +209,6 @@ export default function App() {
         visible={menuOpen}
         transparent
         animationType="fade"
-        statusBarTranslucent
         onShow={hideSystemBars}
         onRequestClose={() => setMenuOpen(false)}
       >
@@ -452,22 +458,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     backgroundColor: 'rgba(245,241,232,0.95)',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  menuBtn: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
+  menuBtn: { width: 48, height: 48, alignItems: 'flex-start', justifyContent: 'center' },
   brandWrap: { alignItems: 'center' },
-  brand: { fontSize: 20, letterSpacing: 3, color: COLORS.charcoal, fontWeight: '300' },
-  tagline: { fontSize: 8, letterSpacing: 2, color: COLORS.gold, marginTop: 2 },
-  navIcons: { flexDirection: 'row', alignItems: 'center', width: 40, height: 40, justifyContent: 'flex-end' },
+  brand: { fontSize: 26, letterSpacing: 4, color: COLORS.charcoal, fontWeight: '300' },
+  tagline: { fontSize: 10, letterSpacing: 2.5, color: COLORS.gold, marginTop: 3 },
+  navIcons: { flexDirection: 'row', alignItems: 'center', width: 48, height: 48, justifyContent: 'flex-end' },
   cartBadge: {
-    position: 'absolute', top: -6, left: -6, backgroundColor: COLORS.charcoal,
-    width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', top: -6, left: -8, backgroundColor: COLORS.charcoal,
+    width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center',
   },
-  cartBadgeText: { color: COLORS.ivory, fontSize: 9 },
+  cartBadgeText: { color: COLORS.ivory, fontSize: 10 },
 
   // Mobile menu
   menuOverlay: { flex: 1, backgroundColor: 'rgba(43,38,34,0.4)' },
