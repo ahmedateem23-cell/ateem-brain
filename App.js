@@ -1,0 +1,513 @@
+import React, { useState } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Dimensions,
+  I18nManager,
+  Modal,
+  Platform,
+} from 'react-native';
+
+// فرض اتجاه RTL للتطبيق بالكامل (يفضّل ضبطه أيضاً في app.json وإعادة تشغيل التطبيق)
+I18nManager.allowRTL(true);
+I18nManager.forceRTL(true);
+
+const { width } = Dimensions.get('window');
+
+const COLORS = {
+  ivory: '#F5F1E8',
+  ivoryLight: '#FAF8F3',
+  ivoryDark: '#E8DFD0',
+  gold: '#8B7355',
+  goldLight: '#C9B99A',
+  charcoal: '#5C2029',
+  ink: '#2B2622',
+  textMuted: '#6B5B4F',
+  textSubtle: '#A99E8E',
+  border: '#DDD5C4',
+  white: '#FFFFFF',
+};
+
+// ---------- بيانات الصفحة ----------
+const CATEGORIES = [
+  { id: 'women', title: 'نساء', cta: 'اكتشفي المزيد', img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500&q=80' },
+  { id: 'men', title: 'رجال', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=500&q=80' },
+  { id: 'accessories', title: 'إكسسوارات', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=500&q=80' },
+  { id: 'jewelry', title: 'مجوهرات', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&q=80' },
+];
+
+const PRODUCTS = [
+  { id: 'p1', name: 'معطف كشمير طويل', price: '89,000 SDG', badge: 'جديد', img: 'https://images.unsplash.com/photo-1591561954557-26941169b49e?w=500&q=80' },
+  { id: 'p2', name: 'حقيبة يد جلدية', price: '152,000 SDG', badge: null, img: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500&q=80' },
+  { id: 'p3', name: 'بدلة رسمية كلاسيكية', price: '220,000 SDG', badge: 'محدود', img: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=500&q=80' },
+  { id: 'p4', name: 'خاتم ذهبي مرصع', price: '185,000 SDG', badge: null, img: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500&q=80' },
+];
+
+const LOOKS = [
+  { id: 'l1', title: 'الأناقة المسائية', season: 'خريف / شتاء 2026', img: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&q=80' },
+  { id: 'l2', title: 'الكلاسيكية العصرية', season: 'مجموعة دائمة', img: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=600&q=80' },
+  { id: 'l3', title: 'إطلالة الشارع', season: 'ربيع / صيف 2026', img: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80' },
+  { id: 'l4', title: 'الألوان المحايدة', season: 'تشكيلة حصرية', img: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1000&q=80' },
+  { id: 'l5', title: 'تفاصيل الجلد', season: 'إكسسوارات فاخرة', img: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=600&q=80' },
+];
+
+const NAV_LINKS = ['نساء', 'رجال', 'إكسسوارات', 'مجوهرات', 'القصة'];
+
+const TRUST_ITEMS = [
+  { title: 'توصيل مجاني', desc: 'على الطلبات فوق 50,000 SDG' },
+  { title: 'ضمان أصالة', desc: 'شهادة مع كل قطعة' },
+  { title: 'إرجاع سهل', desc: 'خلال 30 يوماً' },
+  { title: 'تغليف فاخر', desc: 'هدايا حصرية مع كل طلب' },
+];
+
+// ---------- أيقونات بسيطة (نص/رموز بدل مكتبة أيقونات خارجية) ----------
+const Icon = ({ children, size = 20, color = COLORS.ink }) => (
+  <Text style={{ fontSize: size, color }}>{children}</Text>
+);
+
+export default function App() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [cartCount] = useState(2);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      {/* ===== Header ===== */}
+      <View style={styles.navbar}>
+        <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.menuBtn}>
+          <Icon size={22}>☰</Icon>
+        </TouchableOpacity>
+
+        <View style={styles.brandWrap}>
+          <Text style={styles.brand}>ATEEM</Text>
+          <Text style={styles.tagline}>SUDAN · MODERN LUXURY</Text>
+        </View>
+
+        <View style={styles.navIcons}>
+          <TouchableOpacity style={{ marginLeft: 14 }}>
+            <Icon size={18}>🔍</Icon>
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Icon size={18}>🛍️</Icon>
+            {cartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ===== القائمة الجانبية ===== */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
+          <View style={styles.menuPanel}>
+            {[...NAV_LINKS, 'تواصل معنا'].map((link) => (
+              <TouchableOpacity key={link} style={styles.menuLinkRow}>
+                <Text style={styles.menuLinkText}>{link}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* ===== Hero ===== */}
+        <View style={styles.hero}>
+          <Image source={{ uri: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=900&q=80' }} style={styles.heroImage} />
+          <View style={styles.floatingCard}>
+            <Text style={styles.floatingLabel}>القطعة المميزة</Text>
+            <Text style={styles.floatingTitle}>حقيبة كتف جلدية</Text>
+            <Text style={styles.floatingPrice}>125,000 SDG</Text>
+            <TouchableOpacity>
+              <Text style={styles.floatingAdd}>أضف للسلة</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.heroText}>
+            <View style={styles.heroLabelRow}>
+              <View style={styles.heroLine} />
+              <Text style={styles.heroLabel}>مجموعة خريف / شتاء 2026</Text>
+            </View>
+            <Text style={styles.heroTitle}>
+              فنُّ{'\n'}
+              <Text style={styles.heroTitleItalic}>الأناقة</Text>
+            </Text>
+            <Text style={styles.heroDesc}>
+              اكتشف تشكيلتنا الجديدة التي تجمع بين الحرفية الدقيقة والروح العصرية. كل قطعة تروي قصة من التميز.
+            </Text>
+            <View style={styles.heroButtons}>
+              <TouchableOpacity style={styles.btnPrimary}>
+                <Text style={styles.btnPrimaryText}>اكتشف المجموعة</Text>
+              </TouchableOpacity>
+              <TouchableOpacity>
+                <Text style={styles.btnText}>شاهد الفيديو</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* ===== Categories ===== */}
+        <View style={styles.section}>
+          <View style={styles.categoriesGrid}>
+            {CATEGORIES.map((cat) => (
+              <TouchableOpacity key={cat.id} style={styles.categoryCard}>
+                <Image source={{ uri: cat.img }} style={styles.categoryImage} />
+                <View style={styles.categoryOverlay} />
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{cat.title}</Text>
+                  <Text style={styles.categoryCta}>{cat.cta} ←</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ===== New Arrivals ===== */}
+        <View style={[styles.section, styles.sectionAlt]}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionLabel}>وصل حديثاً</Text>
+              <Text style={styles.sectionTitle}>القطع الجديدة</Text>
+            </View>
+            <TouchableOpacity>
+              <Text style={styles.viewAll}>عرض الكل ←</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.productsGrid}>
+            {PRODUCTS.map((p) => (
+              <TouchableOpacity key={p.id} style={styles.productCard}>
+                <View style={styles.productImageWrap}>
+                  <Image source={{ uri: p.img }} style={styles.productImage} />
+                  {p.badge && (
+                    <View style={[styles.productBadge, p.badge === 'محدود' && styles.productBadgeGold]}>
+                      <Text style={styles.productBadgeText}>{p.badge}</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity style={styles.addToCartBtn}>
+                    <Icon size={14}>+</Icon>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.productName}>{p.name}</Text>
+                <Text style={styles.productPrice}>{p.price}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ===== Lookbook ===== */}
+        <View style={styles.lookbook}>
+          <View style={styles.lookbookHeader}>
+            <Text style={styles.lookLabel}>الإلهام</Text>
+            <Text style={styles.lookTitle}>معرض الأزياء</Text>
+            <Text style={styles.lookSubtitle}>رحلة بصرية عبر أرقى لحظات الموضة</Text>
+          </View>
+
+          {LOOKS.map((look, i) => (
+            <TouchableOpacity key={look.id} style={styles.lookItem}>
+              <Image source={{ uri: look.img }} style={styles.lookImage} />
+              <View style={styles.lookOverlay}>
+                <Text style={styles.lookNumber}>{String(i + 1).padStart(2, '0')}</Text>
+                <Text style={styles.lookItemTitle}>{look.title}</Text>
+                <Text style={styles.lookSeason}>{look.season}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity style={styles.lookFooterBtn}>
+            <Text style={styles.lookFooterBtnText}>استعرض المجموعة الكاملة</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ===== Craftsmanship ===== */}
+        <View style={styles.craft}>
+          <View style={styles.craftImageWrap}>
+            <Image source={{ uri: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=800&q=80' }} style={styles.craftImage} />
+            <View style={styles.craftStat}>
+              <Text style={styles.craftStatNumber}>102</Text>
+              <Text style={styles.craftStatDesc}>ساعة من العمل اليدوي{'\n'}لكل قطعة</Text>
+            </View>
+          </View>
+          <View style={styles.craftContent}>
+            <Text style={styles.sectionLabel}>الحرفية</Text>
+            <Text style={styles.craftHeading}>
+              حيث يُصنع{'\n'}التميز <Text style={styles.heroTitleItalic}>بيدٍ</Text> واحدة
+            </Text>
+            <Text style={styles.craftParagraph}>
+              نحافظ في ATEEM على معايير حرفية دقيقة في اختيار كل قطعة. كل منتج يمر بمراحل تدقيق متأنية، من اختيار أجود الأقمشة والجلود إلى أدق التفاصيل النهائية.
+            </Text>
+            <Text style={styles.craftParagraph}>
+              نؤمن بأن الفخامة الحقيقية تكمن في التفاصيل التي لا تراها العين، لكنها تشعر بها الروح.
+            </Text>
+            <TouchableOpacity>
+              <Text style={styles.craftLink}>اقرأ قصتنا ←</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ===== Editorial Banner ===== */}
+        <View style={styles.editorial}>
+          <Image source={{ uri: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=1400&q=80' }} style={styles.editorialImage} />
+          <View style={styles.editorialOverlay}>
+            <Text style={styles.editorialLabel}>الأناقة الخالدة</Text>
+            <Text style={styles.editorialTitle}>
+              أسلوبٌ يتجاوز{'\n'}
+              <Text style={styles.heroTitleItalic}>المواسم</Text>
+            </Text>
+            <TouchableOpacity style={styles.editorialBtn}>
+              <Text style={styles.editorialBtnText}>استكشف المجموعة الدائمة</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ===== Trust Badges ===== */}
+        <View style={[styles.section, styles.sectionAlt]}>
+          <View style={styles.trustGrid}>
+            {TRUST_ITEMS.map((t) => (
+              <View key={t.title} style={styles.trustItem}>
+                <Text style={styles.trustTitle}>{t.title}</Text>
+                <Text style={styles.trustDesc}>{t.desc}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ===== Newsletter ===== */}
+        <View style={styles.newsletter}>
+          <Text style={styles.sectionLabel}>كن ضمن دائرتنا الخاصة</Text>
+          <Text style={styles.newsletterTitle}>اشترك في نشرتنا الإخبارية</Text>
+          <Text style={styles.newsletterDesc}>كن أول من يطلع على المجموعات الجديدة والعروض الحصرية.</Text>
+          <TextInput style={styles.newsletterInput} placeholder="بريدك الإلكتروني" placeholderTextColor={COLORS.textSubtle} keyboardType="email-address" />
+          <TouchableOpacity style={styles.newsletterBtn}>
+            <Text style={styles.newsletterBtnText}>اشتراك</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ===== Footer ===== */}
+        <View style={styles.footer}>
+          <Text style={styles.footerBrand}>ATEEM</Text>
+          <Text style={styles.footerTagline}>أناقة رجالية ونسائية فاخرة، بروح عصرية هادئة. قطع تروي قصة لا تُنسى.</Text>
+
+          {[
+            { title: 'تسوق', links: ['نساء', 'رجال', 'إكسسوارات', 'مجوهرات', 'هدايا'] },
+            { title: 'العلامة التجارية', links: ['قصتنا', 'الحرفية', 'الاستدامة', 'الوظائف'] },
+            { title: 'خدمة العملاء', links: ['تواصل معنا', 'الشحن والإرجاع', 'الأسئلة الشائعة', 'حجز موعد'] },
+          ].map((col) => (
+            <View key={col.title} style={styles.footerCol}>
+              <Text style={styles.footerColTitle}>{col.title}</Text>
+              {col.links.map((l) => (
+                <Text key={l} style={styles.footerLink}>{l}</Text>
+              ))}
+            </View>
+          ))}
+
+          <Text style={styles.footerBottom}>© 2026 ATEEM. جميع الحقوق محفوظة.</Text>
+        </View>
+      </ScrollView>
+
+      {/* ===== Bottom Nav ===== */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>🏠</Icon>
+          <Text style={[styles.bottomNavText, styles.bottomNavActive]}>الهوم</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>🔍</Icon>
+          <Text style={styles.bottomNavText}>بحث</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>🛒</Icon>
+          <Text style={styles.bottomNavText}>المتجر</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>👤</Icon>
+          <Text style={styles.bottomNavText}>الشخصي</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const CARD_GAP = 12;
+const CARD_W = (width - 24 * 2 - CARD_GAP) / 2;
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.ivory },
+  scrollContent: { paddingBottom: 70 },
+
+  // Navbar
+  navbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(245,241,232,0.95)',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  menuBtn: { width: 36 },
+  brandWrap: { alignItems: 'center' },
+  brand: { fontSize: 20, letterSpacing: 3, color: COLORS.charcoal, fontWeight: '300' },
+  tagline: { fontSize: 8, letterSpacing: 2, color: COLORS.gold, marginTop: 2 },
+  navIcons: { flexDirection: 'row', alignItems: 'center', width: 60, justifyContent: 'flex-end' },
+  cartBadge: {
+    position: 'absolute', top: -6, left: -6, backgroundColor: COLORS.charcoal,
+    width: 15, height: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+  },
+  cartBadgeText: { color: COLORS.ivory, fontSize: 8 },
+
+  // Mobile menu
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(43,38,34,0.4)' },
+  menuPanel: {
+    marginTop: 70, alignSelf: 'center', width: '70%', backgroundColor: COLORS.ivoryLight,
+    borderRadius: 8, paddingVertical: 10, paddingHorizontal: 22,
+  },
+  menuLinkRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  menuLinkText: { fontSize: 16, color: COLORS.ink },
+
+  // Hero
+  hero: { paddingBottom: 10 },
+  heroImage: { width: '100%', height: 380 },
+  floatingCard: {
+    position: 'absolute', top: 340, left: 20, backgroundColor: 'rgba(255,255,255,0.96)',
+    padding: 16, maxWidth: 190, borderWidth: 1, borderColor: COLORS.ivoryDark,
+  },
+  floatingLabel: { fontSize: 9, letterSpacing: 1.5, color: COLORS.gold, textTransform: 'uppercase', marginBottom: 4 },
+  floatingTitle: { fontSize: 15, color: COLORS.ink, marginBottom: 3 },
+  floatingPrice: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
+  floatingAdd: { fontSize: 10, letterSpacing: 1, color: COLORS.gold, textDecorationLine: 'underline' },
+
+  heroText: { paddingHorizontal: 24, paddingTop: 28 },
+  heroLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  heroLine: { width: 32, height: 1, backgroundColor: COLORS.gold, marginLeft: 10 },
+  heroLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
+  heroTitle: { fontSize: 44, lineHeight: 46, color: COLORS.ink, fontWeight: '300', marginBottom: 16 },
+  heroTitleItalic: { fontStyle: 'italic', color: COLORS.gold },
+  heroDesc: { color: COLORS.textMuted, fontSize: 15, lineHeight: 24, marginBottom: 24 },
+  heroButtons: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  btnPrimary: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 28 },
+  btnPrimaryText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
+  btnText: { color: COLORS.gold, fontSize: 12, letterSpacing: 1, textDecorationLine: 'underline' },
+
+  // Sections generic
+  section: { paddingHorizontal: 20, paddingVertical: 40 },
+  sectionAlt: { backgroundColor: 'rgba(255,255,255,0.5)' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 },
+  sectionLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
+  sectionTitle: { fontSize: 26, color: COLORS.ink, fontWeight: '300' },
+  viewAll: { color: COLORS.gold, fontSize: 12, letterSpacing: 1 },
+
+  // Categories
+  categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, justifyContent: 'space-between' },
+  categoryCard: { width: CARD_W, height: CARD_W * 1.3, overflow: 'hidden', marginBottom: CARD_GAP },
+  categoryImage: { width: '100%', height: '100%' },
+  categoryOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(92,32,41,0.35)' },
+  categoryContent: { position: 'absolute', bottom: 14, right: 14, left: 14 },
+  categoryTitle: { fontSize: 20, color: '#fff', fontWeight: '300', marginBottom: 4 },
+  categoryCta: { fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.85)' },
+
+  // Products
+  productsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, justifyContent: 'space-between' },
+  productCard: { width: CARD_W, marginBottom: 20 },
+  productImageWrap: { width: '100%', height: CARD_W * 1.3, backgroundColor: COLORS.ivoryDark, marginBottom: 10, position: 'relative' },
+  productImage: { width: '100%', height: '100%' },
+  productBadge: {
+    position: 'absolute', top: 10, right: 10, backgroundColor: COLORS.charcoal,
+    paddingVertical: 4, paddingHorizontal: 8,
+  },
+  productBadgeGold: { backgroundColor: COLORS.gold },
+  productBadgeText: { color: COLORS.ivory, fontSize: 9, letterSpacing: 1 },
+  addToCartBtn: {
+    position: 'absolute', bottom: 10, left: 10, width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center',
+  },
+  productName: { fontSize: 14, color: COLORS.ink, marginBottom: 3 },
+  productPrice: { fontSize: 13, color: COLORS.gold },
+
+  // Lookbook
+  lookbook: { backgroundColor: COLORS.charcoal, paddingVertical: 50, paddingHorizontal: 20 },
+  lookbookHeader: { alignItems: 'center', marginBottom: 30 },
+  lookLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
+  lookTitle: { color: COLORS.ivory, fontSize: 28, fontWeight: '300', marginBottom: 8 },
+  lookSubtitle: { color: COLORS.goldLight, fontSize: 13 },
+  lookItem: { height: 220, marginBottom: 14, overflow: 'hidden' },
+  lookImage: { width: '100%', height: '100%' },
+  lookOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, top: 0, justifyContent: 'flex-end',
+    padding: 18, backgroundColor: 'rgba(92,32,41,0.35)',
+  },
+  lookNumber: { position: 'absolute', top: 10, right: 16, fontSize: 40, color: 'rgba(245,241,232,0.2)' },
+  lookItemTitle: { color: '#fff', fontSize: 18, fontWeight: '300', marginBottom: 4 },
+  lookSeason: { color: COLORS.goldLight, fontSize: 10, letterSpacing: 1.5 },
+  lookFooterBtn: {
+    alignSelf: 'center', marginTop: 20, paddingVertical: 14, paddingHorizontal: 36,
+    borderWidth: 1, borderColor: 'rgba(245,241,232,0.4)',
+  },
+  lookFooterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
+
+  // Craftsmanship
+  craft: { paddingHorizontal: 20, paddingVertical: 50 },
+  craftImageWrap: { position: 'relative', marginBottom: 40 },
+  craftImage: { width: '100%', height: 320, borderRadius: 4 },
+  craftStat: { position: 'absolute', bottom: -20, left: 10, backgroundColor: COLORS.charcoal, padding: 20 },
+  craftStatNumber: { color: COLORS.ivory, fontSize: 36, fontWeight: '300' },
+  craftStatDesc: { color: COLORS.goldLight, fontSize: 10, letterSpacing: 1, marginTop: 6, lineHeight: 16 },
+  craftContent: {},
+  craftHeading: { fontSize: 26, color: COLORS.ink, fontWeight: '300', lineHeight: 32, marginBottom: 16, marginTop: 8 },
+  craftParagraph: { color: COLORS.textMuted, lineHeight: 24, marginBottom: 12 },
+  craftLink: { color: COLORS.ink, fontSize: 12, letterSpacing: 1.5, marginTop: 10, textDecorationLine: 'underline' },
+
+  // Editorial
+  editorial: { height: 320, position: 'relative' },
+  editorialImage: { width: '100%', height: '100%' },
+  editorialOverlay: {
+    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(92,32,41,0.45)',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30,
+  },
+  editorialLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 },
+  editorialTitle: { color: '#fff', fontSize: 30, fontWeight: '300', textAlign: 'center', lineHeight: 36, marginBottom: 20 },
+  editorialBtn: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 14, paddingHorizontal: 32 },
+  editorialBtnText: { color: '#fff', fontSize: 12, letterSpacing: 1.5 },
+
+  // Trust
+  trustGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  trustItem: { width: '48%', alignItems: 'center', marginBottom: 24 },
+  trustTitle: { fontSize: 15, color: COLORS.ink, marginBottom: 4 },
+  trustDesc: { fontSize: 10, color: COLORS.gold, letterSpacing: 1, textAlign: 'center' },
+
+  // Newsletter
+  newsletter: { paddingHorizontal: 24, paddingVertical: 50, alignItems: 'center' },
+  newsletterTitle: { fontSize: 24, color: COLORS.ink, fontWeight: '300', marginBottom: 10, textAlign: 'center' },
+  newsletterDesc: { color: COLORS.textMuted, textAlign: 'center', marginBottom: 24 },
+  newsletterInput: {
+    width: '100%', borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#fff',
+    paddingVertical: 14, paddingHorizontal: 18, marginBottom: 12, textAlign: 'right',
+  },
+  newsletterBtn: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 30, width: '100%', alignItems: 'center' },
+  newsletterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
+
+  // Footer
+  footer: { backgroundColor: COLORS.charcoal, paddingHorizontal: 24, paddingVertical: 50 },
+  footerBrand: { color: COLORS.ivory, fontSize: 20, letterSpacing: 3, marginBottom: 10 },
+  footerTagline: { color: COLORS.goldLight, fontSize: 13, lineHeight: 20, marginBottom: 28 },
+  footerCol: { marginBottom: 24 },
+  footerColTitle: { color: COLORS.gold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
+  footerLink: { color: COLORS.goldLight, fontSize: 14, marginBottom: 8 },
+  footerBottom: { color: COLORS.gold, fontSize: 10, letterSpacing: 1, marginTop: 10, textAlign: 'center' },
+
+  // Bottom nav
+  bottomNav: {
+    flexDirection: 'row', height: 56, backgroundColor: 'rgba(250,248,243,0.98)',
+    borderTopWidth: 1, borderTopColor: 'rgba(139,115,85,0.25)',
+  },
+  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  bottomNavText: { fontSize: 9, color: COLORS.ink, letterSpacing: 0.5 },
+  bottomNavActive: { color: COLORS.gold },
+});
