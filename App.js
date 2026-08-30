@@ -138,16 +138,24 @@ export default function App() {
   const [cartCount] = useState(2);
 
   // شاشة ملء كاملة: إخفاء شريط الحالة العلوي وشريط التنقل السفلي للنظام
+  const hideSystemBars = async () => {
+    try {
+      await NavigationBar.setVisibilityAsync('hidden');
+      await NavigationBar.setBehaviorAsync('overlay-swipe');
+    } catch (e) {
+      // بعض الأجهزة/أوضاع التشغيل لا تدعم التحكم ببار التنقل، نتجاهل بهدوء
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        await NavigationBar.setVisibilityAsync('hidden');
-        await NavigationBar.setBehaviorAsync('overlay-swipe');
-      } catch (e) {
-        // بعض الأجهزة/أوضاع التشغيل لا تدعم التحكم ببار التنقل، نتجاهل بهدوء
-      }
-    })();
+    hideSystemBars();
   }, []);
+
+  // فتح أي Modal (زي القائمة الجانبية) بيعمل نافذة Android جديدة بتُرجع
+  // إظهار أشرطة النظام تلقائياً، فلازم نطبّق الإخفاء تاني بعد كل فتح/قفل
+  useEffect(() => {
+    hideSystemBars();
+  }, [menuOpen]);
 
   // طلب إذن الإشعارات بشكل غير مزعج عند أول فتح للتطبيق
   useEffect(() => {
@@ -190,7 +198,14 @@ export default function App() {
       </View>
 
       {/* ===== القائمة الجانبية ===== */}
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onShow={hideSystemBars}
+        onRequestClose={() => setMenuOpen(false)}
+      >
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
           <View style={styles.menuPanel}>
             {[...NAV_LINKS, 'تواصل معنا'].map((link) => (
@@ -401,13 +416,14 @@ export default function App() {
       </ScrollView>
 
       {/* ===== Bottom Nav ===== */}
-      {/* الترتيب معكوس بالكامل: الشخصي في أقصى الشمال، الهوم في أقصى اليمين */}
+      {/* الترتيب هنا بديهي (هوم، بحث، متجر، شخصي)، وانعكاس RTL التلقائي
+          هو اللي بيخلي "الهوم" يظهر أقصى اليمين و"الشخصي" أقصى الشمال فعلياً */}
       <View style={styles.bottomNav}>
         {[
-          { key: 'profile', icon: 'user', label: 'الشخصي' },
-          { key: 'store', icon: 'bag', label: 'المتجر' },
-          { key: 'search', icon: 'search', label: 'بحث' },
           { key: 'home', icon: 'home', label: 'الهوم', active: true },
+          { key: 'search', icon: 'search', label: 'بحث' },
+          { key: 'store', icon: 'bag', label: 'المتجر' },
+          { key: 'profile', icon: 'user', label: 'الشخصي' },
         ].map((item) => (
           <TouchableOpacity key={item.key} style={styles.bottomNavBtn}>
             <LineIcon
@@ -464,9 +480,9 @@ const styles = StyleSheet.create({
 
   // Hero
   hero: { paddingBottom: 10 },
-  heroImage: { width: '100%', height: 380 },
+  heroImage: { width: '100%', height: 300 },
   floatingCard: {
-    position: 'absolute', top: 340, left: 20, backgroundColor: 'rgba(255,255,255,0.96)',
+    position: 'absolute', top: 205, left: 20, backgroundColor: 'rgba(255,255,255,0.97)',
     padding: 16, maxWidth: 190, borderWidth: 1, borderColor: COLORS.ivoryDark,
   },
   floatingLabel: { fontSize: 9, letterSpacing: 1.5, color: COLORS.gold, textTransform: 'uppercase', marginBottom: 4 },
@@ -474,7 +490,7 @@ const styles = StyleSheet.create({
   floatingPrice: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
   floatingAdd: { fontSize: 10, letterSpacing: 1, color: COLORS.gold, textDecorationLine: 'underline' },
 
-  heroText: { paddingHorizontal: 24, paddingTop: 28 },
+  heroText: { paddingHorizontal: 24, paddingTop: 70 },
   heroLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   heroLine: { width: 32, height: 1, backgroundColor: COLORS.gold, marginLeft: 10 },
   heroLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
