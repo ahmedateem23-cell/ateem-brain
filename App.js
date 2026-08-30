@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -13,6 +13,10 @@ import {
   Modal,
   Platform,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
+import * as Notifications from 'expo-notifications';
+import Svg, { Path, Circle, Line } from 'react-native-svg';
 
 // فرض اتجاه RTL للتطبيق بالكامل (يفضّل ضبطه أيضاً في app.json وإعادة تشغيل التطبيق)
 I18nManager.allowRTL(true);
@@ -28,8 +32,9 @@ const COLORS = {
   goldLight: '#C9B99A',
   charcoal: '#5C2029',
   ink: '#2B2622',
-  textMuted: '#6B5B4F',
-  textSubtle: '#A99E8E',
+  // تباين أعلى مع الخلفيات الفاتحة (كانت #6B5B4F / #A99E8E)
+  textMuted: '#4E4034',
+  textSubtle: '#7A6A57',
   border: '#DDD5C4',
   white: '#FFFFFF',
 };
@@ -66,21 +71,105 @@ const TRUST_ITEMS = [
   { title: 'تغليف فاخر', desc: 'هدايا حصرية مع كل طلب' },
 ];
 
-// ---------- أيقونات بسيطة (نص/رموز بدل مكتبة أيقونات خارجية) ----------
-const Icon = ({ children, size = 20, color = COLORS.ink }) => (
-  <Text style={{ fontSize: size, color }}>{children}</Text>
-);
+// ---------- أيقونات خطية (SVG) راقية بدل الإيموجي ----------
+const LineIcon = ({ name, size = 22, color = COLORS.ink, strokeWidth = 1.6 }) => {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: color,
+    strokeWidth,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  };
+
+  switch (name) {
+    case 'menu':
+      return (
+        <Svg {...common}>
+          <Line x1="3.5" y1="6.5" x2="20.5" y2="6.5" />
+          <Line x1="3.5" y1="12" x2="20.5" y2="12" />
+          <Line x1="3.5" y1="17.5" x2="20.5" y2="17.5" />
+        </Svg>
+      );
+    case 'bag':
+      return (
+        <Svg {...common}>
+          <Path d="M6.5 8h11l-0.9 12.2a1 1 0 0 1-1 0.8H8.4a1 1 0 0 1-1-0.8L6.5 8z" />
+          <Path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
+        </Svg>
+      );
+    case 'home':
+      return (
+        <Svg {...common}>
+          <Path d="M3.5 11.5 12 4l8.5 7.5" />
+          <Path d="M5.5 10v9.5a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V10" />
+        </Svg>
+      );
+    case 'search':
+      return (
+        <Svg {...common}>
+          <Circle cx="11" cy="11" r="6.5" />
+          <Line x1="20" y1="20" x2="16" y2="16" />
+        </Svg>
+      );
+    case 'user':
+      return (
+        <Svg {...common}>
+          <Circle cx="12" cy="8.2" r="3.8" />
+          <Path d="M4.5 20c0.7-3.8 4-5.8 7.5-5.8s6.8 2 7.5 5.8" />
+        </Svg>
+      );
+    case 'plus':
+      return (
+        <Svg {...common}>
+          <Line x1="12" y1="5.5" x2="12" y2="18.5" />
+          <Line x1="5.5" y1="12" x2="18.5" y2="12" />
+        </Svg>
+      );
+    default:
+      return null;
+  }
+};
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount] = useState(2);
 
+  // شاشة ملء كاملة: إخفاء شريط الحالة العلوي وشريط التنقل السفلي للنظام
+  useEffect(() => {
+    (async () => {
+      try {
+        await NavigationBar.setVisibilityAsync('hidden');
+        await NavigationBar.setBehaviorAsync('overlay-swipe');
+      } catch (e) {
+        // بعض الأجهزة/أوضاع التشغيل لا تدعم التحكم ببار التنقل، نتجاهل بهدوء
+      }
+    })();
+  }, []);
+
+  // طلب إذن الإشعارات بشكل غير مزعج عند أول فتح للتطبيق
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        if (existing !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch (e) {
+        // لو رفض المستخدم أو فشل الطلب، لا نوقف التطبيق
+      }
+    })();
+  }, []);
+
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar hidden style="dark" />
       {/* ===== Header ===== */}
       <View style={styles.navbar}>
         <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.menuBtn}>
-          <Icon size={22}>☰</Icon>
+          <LineIcon name="menu" size={22} color={COLORS.charcoal} />
         </TouchableOpacity>
 
         <View style={styles.brandWrap}>
@@ -89,11 +178,8 @@ export default function App() {
         </View>
 
         <View style={styles.navIcons}>
-          <TouchableOpacity style={{ marginLeft: 14 }}>
-            <Icon size={18}>🔍</Icon>
-          </TouchableOpacity>
           <TouchableOpacity>
-            <Icon size={18}>🛍️</Icon>
+            <LineIcon name="bag" size={20} color={COLORS.charcoal} />
             {cartCount > 0 && (
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>{cartCount}</Text>
@@ -119,7 +205,10 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* ===== Hero ===== */}
         <View style={styles.hero}>
-          <Image source={{ uri: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=900&q=80' }} style={styles.heroImage} />
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&q=90' }}
+            style={styles.heroImage}
+          />
           <View style={styles.floatingCard}>
             <Text style={styles.floatingLabel}>القطعة المميزة</Text>
             <Text style={styles.floatingTitle}>حقيبة كتف جلدية</Text>
@@ -191,7 +280,7 @@ export default function App() {
                     </View>
                   )}
                   <TouchableOpacity style={styles.addToCartBtn}>
-                    <Icon size={14}>+</Icon>
+                    <LineIcon name="plus" size={16} color={COLORS.charcoal} strokeWidth={1.8} />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.productName}>{p.name}</Text>
@@ -312,23 +401,24 @@ export default function App() {
       </ScrollView>
 
       {/* ===== Bottom Nav ===== */}
+      {/* الترتيب معكوس بالكامل: الشخصي في أقصى الشمال، الهوم في أقصى اليمين */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>🏠</Icon>
-          <Text style={[styles.bottomNavText, styles.bottomNavActive]}>الهوم</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>🔍</Icon>
-          <Text style={styles.bottomNavText}>بحث</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>🛒</Icon>
-          <Text style={styles.bottomNavText}>المتجر</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>👤</Icon>
-          <Text style={styles.bottomNavText}>الشخصي</Text>
-        </TouchableOpacity>
+        {[
+          { key: 'profile', icon: 'user', label: 'الشخصي' },
+          { key: 'store', icon: 'bag', label: 'المتجر' },
+          { key: 'search', icon: 'search', label: 'بحث' },
+          { key: 'home', icon: 'home', label: 'الهوم', active: true },
+        ].map((item) => (
+          <TouchableOpacity key={item.key} style={styles.bottomNavBtn}>
+            <LineIcon
+              name={item.icon}
+              size={19}
+              color={item.active ? COLORS.gold : COLORS.ink}
+              strokeWidth={1.6}
+            />
+            <Text style={[styles.bottomNavText, item.active && styles.bottomNavActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
     </SafeAreaView>
   );
@@ -347,21 +437,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 16,
     backgroundColor: 'rgba(245,241,232,0.95)',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  menuBtn: { width: 36 },
+  menuBtn: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
   brandWrap: { alignItems: 'center' },
   brand: { fontSize: 20, letterSpacing: 3, color: COLORS.charcoal, fontWeight: '300' },
   tagline: { fontSize: 8, letterSpacing: 2, color: COLORS.gold, marginTop: 2 },
-  navIcons: { flexDirection: 'row', alignItems: 'center', width: 60, justifyContent: 'flex-end' },
+  navIcons: { flexDirection: 'row', alignItems: 'center', width: 40, height: 40, justifyContent: 'flex-end' },
   cartBadge: {
     position: 'absolute', top: -6, left: -6, backgroundColor: COLORS.charcoal,
-    width: 15, height: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
   },
-  cartBadgeText: { color: COLORS.ivory, fontSize: 8 },
+  cartBadgeText: { color: COLORS.ivory, fontSize: 9 },
 
   // Mobile menu
   menuOverlay: { flex: 1, backgroundColor: 'rgba(43,38,34,0.4)' },
@@ -369,7 +459,7 @@ const styles = StyleSheet.create({
     marginTop: 70, alignSelf: 'center', width: '70%', backgroundColor: COLORS.ivoryLight,
     borderRadius: 8, paddingVertical: 10, paddingHorizontal: 22,
   },
-  menuLinkRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  menuLinkRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   menuLinkText: { fontSize: 16, color: COLORS.ink },
 
   // Hero
@@ -392,7 +482,10 @@ const styles = StyleSheet.create({
   heroTitleItalic: { fontStyle: 'italic', color: COLORS.gold },
   heroDesc: { color: COLORS.textMuted, fontSize: 15, lineHeight: 24, marginBottom: 24 },
   heroButtons: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  btnPrimary: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 28 },
+  btnPrimary: {
+    backgroundColor: COLORS.charcoal, paddingVertical: 16, paddingHorizontal: 32,
+    minHeight: 50, alignItems: 'center', justifyContent: 'center',
+  },
   btnPrimaryText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
   btnText: { color: COLORS.gold, fontSize: 12, letterSpacing: 1, textDecorationLine: 'underline' },
 
@@ -425,8 +518,8 @@ const styles = StyleSheet.create({
   productBadgeGold: { backgroundColor: COLORS.gold },
   productBadgeText: { color: COLORS.ivory, fontSize: 9, letterSpacing: 1 },
   addToCartBtn: {
-    position: 'absolute', bottom: 10, left: 10, width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', bottom: 10, left: 10, width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center',
   },
   productName: { fontSize: 14, color: COLORS.ink, marginBottom: 3 },
   productPrice: { fontSize: 13, color: COLORS.gold },
@@ -447,7 +540,8 @@ const styles = StyleSheet.create({
   lookItemTitle: { color: '#fff', fontSize: 18, fontWeight: '300', marginBottom: 4 },
   lookSeason: { color: COLORS.goldLight, fontSize: 10, letterSpacing: 1.5 },
   lookFooterBtn: {
-    alignSelf: 'center', marginTop: 20, paddingVertical: 14, paddingHorizontal: 36,
+    alignSelf: 'center', marginTop: 20, paddingVertical: 16, paddingHorizontal: 36,
+    minHeight: 50, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(245,241,232,0.4)',
   },
   lookFooterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
@@ -473,7 +567,10 @@ const styles = StyleSheet.create({
   },
   editorialLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 },
   editorialTitle: { color: '#fff', fontSize: 30, fontWeight: '300', textAlign: 'center', lineHeight: 36, marginBottom: 20 },
-  editorialBtn: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 14, paddingHorizontal: 32 },
+  editorialBtn: {
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 16, paddingHorizontal: 32,
+    minHeight: 50, alignItems: 'center', justifyContent: 'center',
+  },
   editorialBtnText: { color: '#fff', fontSize: 12, letterSpacing: 1.5 },
 
   // Trust
@@ -488,9 +585,12 @@ const styles = StyleSheet.create({
   newsletterDesc: { color: COLORS.textMuted, textAlign: 'center', marginBottom: 24 },
   newsletterInput: {
     width: '100%', borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#fff',
-    paddingVertical: 14, paddingHorizontal: 18, marginBottom: 12, textAlign: 'right',
+    paddingVertical: 16, paddingHorizontal: 18, marginBottom: 12, textAlign: 'right',
   },
-  newsletterBtn: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 30, width: '100%', alignItems: 'center' },
+  newsletterBtn: {
+    backgroundColor: COLORS.charcoal, paddingVertical: 16, paddingHorizontal: 30, width: '100%',
+    minHeight: 50, alignItems: 'center', justifyContent: 'center',
+  },
   newsletterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
 
   // Footer
@@ -504,10 +604,11 @@ const styles = StyleSheet.create({
 
   // Bottom nav
   bottomNav: {
-    flexDirection: 'row', height: 56, backgroundColor: 'rgba(250,248,243,0.98)',
+    flexDirection: 'row', height: 60, backgroundColor: 'rgba(250,248,243,0.98)',
     borderTopWidth: 1, borderTopColor: 'rgba(139,115,85,0.25)',
   },
-  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   bottomNavText: { fontSize: 9, color: COLORS.ink, letterSpacing: 0.5 },
   bottomNavActive: { color: COLORS.gold },
 });
+
