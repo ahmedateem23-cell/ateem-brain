@@ -14,12 +14,14 @@
     },
     "androidStatusBar": {
       "hidden": true,
+      "translucent": true,
       "barStyle": "dark-content"
     },
     "android": {
       "package": "com.ateem.store",
       "versionCode": 1,
       "backgroundColor": "#F5F1E8",
+      "edgeToEdgeEnabled": true,
       "permissions": ["NOTIFICATIONS"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
