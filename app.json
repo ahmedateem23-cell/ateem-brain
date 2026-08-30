@@ -14,13 +14,7 @@
     },
     "androidStatusBar": {
       "hidden": true,
-      "barStyle": "dark-content",
-      "backgroundColor": "#00000000"
-    },
-    "androidNavigationBar": {
-      "visible": "immersive",
-      "barStyle": "dark-content",
-      "backgroundColor": "#F5F1E8"
+      "barStyle": "dark-content"
     },
     "android": {
       "package": "com.ateem.store",
