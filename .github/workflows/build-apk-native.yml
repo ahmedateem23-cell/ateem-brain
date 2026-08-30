@@ -1,4 +1,4 @@
-name: Build ATEEM STORE APK — React Native (Native)
+name: Build ATEEM STORE APK â€” React Native (Native)
 
 on:
   push:
@@ -33,10 +33,38 @@ jobs:
         run: npm install
 
       # 5. Generate the native android/ project from the RN source
-      #    (this replaces "npx cap add android" from the Capacitor pipeline —
+      #    (this replaces "npx cap add android" from the Capacitor pipeline â€”
       #    prebuild turns App.js + app.json into a real native Gradle project)
       - name: Prebuild native Android project
         run: npx expo prebuild --platform android --no-install
+
+      # 5.5 Guarantee the splashscreen_background color resource exists.
+      #     Some Expo SDK 51 prebuild runs skip generating this even when
+      #     app.json has a "splash" block, which crashes AAPT at
+      #     :app:processReleaseResources with "resource ... not found".
+      #     This step makes the build succeed regardless of that.
+      - name: Ensure splash screen color resource exists
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          colors_path = Path("android/app/src/main/res/values/colors.xml")
+          colors_path.parent.mkdir(parents=True, exist_ok=True)
+          if colors_path.exists():
+              text = colors_path.read_text()
+          else:
+              text = '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n</resources>\n'
+          if "splashscreen_background" not in text:
+              text = text.replace(
+                  "</resources>",
+                  '    <color name="splashscreen_background">#F5F1E8</color>\n</resources>'
+              )
+              colors_path.write_text(text)
+              print("Added splashscreen_background color.")
+          else:
+              print("splashscreen_background already present - skipping.")
+          print("---- colors.xml ----")
+          print(colors_path.read_text())
+          PY
 
       # 6. Restore release keystore
       - name: Restore release keystore
