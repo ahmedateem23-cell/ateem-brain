@@ -5,12 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#F5F1E8",
+    "splash": {
+      "backgroundColor": "#F5F1E8",
+      "resizeMode": "contain"
+    },
     "android": {
       "package": "com.ateem.store",
-      "versionCode": 1,
-      "backgroundColor": "#F5F1E8",
-      "permissions": []
+      "versionCode": 1
     },
     "extra": {
       "eas": {}
