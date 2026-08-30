@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "ATEEM",
+    "slug": "ateem-store",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F5F1E8",
+    "android": {
+      "package": "com.ateem.store",
+      "versionCode": 1,
+      "backgroundColor": "#F5F1E8",
+      "permissions": []
+    },
+    "extra": {
+      "eas": {}
+    }
+  }
+}
