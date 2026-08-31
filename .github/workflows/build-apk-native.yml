@@ -1,4 +1,4 @@
-name: Build ATEEM STORE APK â€” React Native (Native)
+name: Build ATEEM STORE APK — React Native (Native)
 
 on:
   push:
@@ -32,8 +32,18 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
+      # 4.5 Restore google-services.json (Firebase) — لازم يكون موجود في
+      #     جذر المشروع قبل الـ prebuild عشان app.json → googleServicesFile
+      #     يقدر يلاقيه وينسخه لمكانه الصحيح جوه android/app/ تلقائياً.
+      - name: Restore google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > google-services.json
+          test -s google-services.json
+
       # 5. Generate the native android/ project from the RN source
-      #    (this replaces "npx cap add android" from the Capacitor pipeline â€”
+      #    (this replaces "npx cap add android" from the Capacitor pipeline —
       #    prebuild turns App.js + app.json into a real native Gradle project)
       - name: Prebuild native Android project
         run: npx expo prebuild --platform android --no-install
