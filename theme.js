@@ -20,7 +20,11 @@ export const THEME = {
   border: '#E8E0D5',
   accent: COLORS.gold,
 
-  // خطوط
+  // خطوط — كل وزن اسمه ملف مستقل، ما بيتحطش fontWeight جنبهم
   fontHeading: 'PlayfairDisplay_700Bold',
+  fontHeadingSemiBold: 'PlayfairDisplay_600SemiBold',
   fontBody: 'Inter_400Regular',
+  fontBodyMedium: 'Inter_500Medium',
+  fontBodySemiBold: 'Inter_600SemiBold',
+  fontBodyBold: 'Inter_700Bold',
 };
