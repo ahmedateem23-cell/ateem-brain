@@ -11,48 +11,30 @@ import {
   Dimensions,
   I18nManager,
   Modal,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useFonts, PlayfairDisplay_700Bold, PlayfairDisplay_600SemiBold } from '@expo-google-fonts/playfair-display';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import ChatOverlay from './ChatOverlay';
+import { COLORS } from './colors';
+import { THEME } from './theme';
 
-// فرض اتجاه RTL للتطبيق بالكامل (يفضّل ضبطه أيضاً في app.json وإعادة تشغيل التطبيق)
+// فرض اتجاه RTL للتطبيق بالكامل
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
 
 const { width } = Dimensions.get('window');
 
-export const COLORS = {
-  ivory: '#F5F1E8',
-  ivoryLight: '#FAF8F3',
-  ivoryDark: '#E8DFD0',
-  gold: '#8B7355',
-  goldLight: '#C9B99A',
-  charcoal: '#5C2029',
-  ink: '#2B2622',
-  textMuted: '#6B5B4F',
-  textSubtle: '#A99E8E',
-  border: '#DDD5C4',
-  white: '#FFFFFF',
-};
-
-// ---------- الاتصال بالمتجر الحقيقي عبر الـ Worker (نفس الـ proxy اللي
-// بيستخدمه البوت) — المفتاح السري لـ Odoo متخزّن سيرفر-سايد فقط، التطبيق
-// هنا بينادي على /odoo-products بس ومفيش أي سر بيتشحن جوه الـ APK ----------
+// ---------- الاتصال بالمتجر الحقيقي عبر الـ Worker ----------
 const ATEEM_PROXY_URL = 'https://ateem-proxy.ahmedatim23.workers.dev/';
 
-// الفئات ومعرض الأزياء (Lookbook) لسه محتوى تحريري ثابت بعناية — Odoo
-// معندوش صور غلاف/قصص لكل فئة، فده جزء تصميمي مش بيانات مخزون بتتغيّر.
 const CATEGORIES = [
   { id: 'women', title: 'نساء', cta: 'اكتشفي المزيد', img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500&q=80' },
   { id: 'men', title: 'رجال', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=500&q=80' },
   { id: 'accessories', title: 'إكسسوارات', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=500&q=80' },
   { id: 'jewelry', title: 'مجوهرات', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&q=80' },
 ];
-
-// PRODUCTS: بيتحمّل فعلياً من Odoo جوه App() تحت (useEffect) — نفس
-// الـ feed اللي البوت بيستخدمه، عشان يعكس المخزون الحقيقي المنشور
-// دلوقتي بالظبط، بدون أي منتج وهمي أو ثابت في الكود.
 
 const LOOKS = [
   { id: 'l1', title: 'الأناقة المسائية', season: 'خريف / شتاء 2026', img: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&q=80' },
@@ -71,8 +53,7 @@ const TRUST_ITEMS = [
   { title: 'تغليف فاخر', desc: 'هدايا حصرية مع كل طلب' },
 ];
 
-// ---------- أيقونات بسيطة (نص/رموز بدل مكتبة أيقونات خارجية) ----------
-const Icon = ({ children, size = 20, color = COLORS.ink }) => (
+const Icon = ({ children, size = 24, color = COLORS.charcoal }) => (
   <Text style={{ fontSize: size, color }}>{children}</Text>
 );
 
@@ -81,8 +62,14 @@ export default function App() {
   const [cartCount] = useState(2);
   const [chatOpen, setChatOpen] = useState(false);
 
-  // منتجات حقيقية من Odoo عبر /odoo-products — نفس المصدر اللي بيستخدمه
-  // البوت، فمفيش أي احتمال إن الواجهة تعرض حاجة والبوت يرشّح حاجة تانية.
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_700Bold,
+    PlayfairDisplay_600SemiBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+  });
+
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState(false);
@@ -112,12 +99,22 @@ export default function App() {
     return n.toLocaleString('en-US') + ' ' + (p.currency || 'SDG');
   }
 
+  if (!fontsLoaded) {
+    return (
+      <SafeAreaView style={[styles.safe, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color={COLORS.gold} size="large" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar style="dark" backgroundColor={THEME.background} />
+
       {/* ===== Header ===== */}
       <View style={styles.navbar}>
-        <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.menuBtn}>
-          <Icon size={22}>☰</Icon>
+        <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.iconBtn}>
+          <Icon size={26}>☰</Icon>
         </TouchableOpacity>
 
         <View style={styles.brandWrap}>
@@ -125,19 +122,14 @@ export default function App() {
           <Text style={styles.tagline}>SUDAN · MODERN LUXURY</Text>
         </View>
 
-        <View style={styles.navIcons}>
-          <TouchableOpacity style={{ marginLeft: 14 }}>
-            <Icon size={18}>🔍</Icon>
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <Icon size={18}>🛍️</Icon>
-            {cartCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.iconBtn}>
+          <Icon size={26}>🛍️</Icon>
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* ===== القائمة الجانبية ===== */}
@@ -156,10 +148,13 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* ===== Hero ===== */}
         <View style={styles.hero}>
-          <Image source={{ uri: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=900&q=80' }} style={styles.heroImage} />
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=900&q=80' }}
+            style={styles.heroImage}
+          />
           <View style={styles.floatingCard}>
             <Text style={styles.floatingLabel}>القطعة المميزة</Text>
-            <Text style={styles.floatingTitle}>حقيبة كتف جلدية</Text>
+            <Text style={styles.floatingTitle}>حقيبة ظهر جلدية فاخرة</Text>
             <Text style={styles.floatingPrice}>125,000 SDG</Text>
             <TouchableOpacity>
               <Text style={styles.floatingAdd}>أضف للسلة</Text>
@@ -176,7 +171,7 @@ export default function App() {
               <Text style={styles.heroTitleItalic}>الأناقة</Text>
             </Text>
             <Text style={styles.heroDesc}>
-              اكتشف تشكيلتنا الجديدة التي تجمع بين الحرفية الدقيقة والروح العصرية. كل قطعة تروي قصة من التميز.
+              اكتشف تشكيلتنا الجديدة التي تجمع بين الحرفية الدقيقة والروح العصرية.
             </Text>
             <View style={styles.heroButtons}>
               <TouchableOpacity style={styles.btnPrimary}>
@@ -206,7 +201,7 @@ export default function App() {
         </View>
 
         {/* ===== New Arrivals ===== */}
-        <View style={[styles.section, styles.sectionAlt]}>
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View>
               <Text style={styles.sectionLabel}>وصل حديثاً</Text>
@@ -244,7 +239,7 @@ export default function App() {
                       </View>
                     )}
                     <TouchableOpacity style={styles.addToCartBtn}>
-                      <Icon size={14}>+</Icon>
+                      <Icon size={16}>+</Icon>
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.productName}>{p.name}</Text>
@@ -294,10 +289,7 @@ export default function App() {
               حيث يُصنع{'\n'}التميز <Text style={styles.heroTitleItalic}>بيدٍ</Text> واحدة
             </Text>
             <Text style={styles.craftParagraph}>
-              نحافظ في ATEEM على معايير حرفية دقيقة في اختيار كل قطعة. كل منتج يمر بمراحل تدقيق متأنية، من اختيار أجود الأقمشة والجلود إلى أدق التفاصيل النهائية.
-            </Text>
-            <Text style={styles.craftParagraph}>
-              نؤمن بأن الفخامة الحقيقية تكمن في التفاصيل التي لا تراها العين، لكنها تشعر بها الروح.
+              نحافظ في ATEEM على معايير حرفية دقيقة في اختيار كل قطعة، من أجود الأقمشة والجلود إلى أدق التفاصيل.
             </Text>
             <TouchableOpacity>
               <Text style={styles.craftLink}>اقرأ قصتنا ←</Text>
@@ -321,7 +313,7 @@ export default function App() {
         </View>
 
         {/* ===== Trust Badges ===== */}
-        <View style={[styles.section, styles.sectionAlt]}>
+        <View style={styles.section}>
           <View style={styles.trustGrid}>
             {TRUST_ITEMS.map((t) => (
               <View key={t.title} style={styles.trustItem}>
@@ -332,67 +324,44 @@ export default function App() {
           </View>
         </View>
 
-        {/* ===== Newsletter ===== */}
-        <View style={styles.newsletter}>
-          <Text style={styles.sectionLabel}>كن ضمن دائرتنا الخاصة</Text>
-          <Text style={styles.newsletterTitle}>اشترك في نشرتنا الإخبارية</Text>
-          <Text style={styles.newsletterDesc}>كن أول من يطلع على المجموعات الجديدة والعروض الحصرية.</Text>
-          <TextInput style={styles.newsletterInput} placeholder="بريدك الإلكتروني" placeholderTextColor={COLORS.textSubtle} keyboardType="email-address" />
-          <TouchableOpacity style={styles.newsletterBtn}>
-            <Text style={styles.newsletterBtnText}>اشتراك</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ===== Footer ===== */}
-        <View style={styles.footer}>
-          <Text style={styles.footerBrand}>ATEEM</Text>
-          <Text style={styles.footerTagline}>أناقة رجالية ونسائية فاخرة، بروح عصرية هادئة. قطع تروي قصة لا تُنسى.</Text>
-
-          {[
-            { title: 'تسوق', links: ['نساء', 'رجال', 'إكسسوارات', 'مجوهرات', 'هدايا'] },
-            { title: 'العلامة التجارية', links: ['قصتنا', 'الحرفية', 'الاستدامة', 'الوظائف'] },
-            { title: 'خدمة العملاء', links: ['تواصل معنا', 'الشحن والإرجاع', 'الأسئلة الشائعة', 'حجز موعد'] },
-          ].map((col) => (
-            <View key={col.title} style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>{col.title}</Text>
-              {col.links.map((l) => (
-                <Text key={l} style={styles.footerLink}>{l}</Text>
-              ))}
-            </View>
-          ))}
-
-          <Text style={styles.footerBottom}>© 2026 ATEEM. جميع الحقوق محفوظة.</Text>
+        {/* ===== إشعارات (بديل النشرة القديمة) ===== */}
+        <View style={styles.notifyCard}>
+          <Text style={styles.notifyIcon}>🔔</Text>
+          <Text style={styles.notifyTitle}>كن أول من يعلم</Text>
+          <Text style={styles.notifyDesc}>اشترك لتصلك إشعارات المجموعات الجديدة والعروض الحصرية</Text>
+          <View style={styles.notifyRow}>
+            <TextInput
+              style={styles.notifyInput}
+              placeholder="بريدك الإلكتروني"
+              placeholderTextColor={THEME.textSecondary}
+              keyboardType="email-address"
+            />
+            <TouchableOpacity style={styles.notifyBtn}>
+              <Text style={styles.notifyBtnText}>اشتراك</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
-      {/* ===== Bottom Nav ===== */}
+      {/* ===== Bottom Nav الجديد ===== */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>🏠</Icon>
-          <Text style={[styles.bottomNavText, styles.bottomNavActive]}>الهوم</Text>
+          <Icon size={24} color={COLORS.gold}>🏠</Icon>
+          <Text style={[styles.bottomNavText, styles.bottomNavActive]}>الرئيسية</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>🔍</Icon>
+          <Icon size={24}>🔍</Icon>
           <Text style={styles.bottomNavText}>بحث</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>🛒</Icon>
+          <Icon size={24}>🛒</Icon>
           <Text style={styles.bottomNavText}>المتجر</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.bottomNavBtn}>
-          <Icon size={16}>👤</Icon>
-          <Text style={styles.bottomNavText}>الشخصي</Text>
+        <TouchableOpacity style={styles.bottomNavBtn} onPress={() => setChatOpen(true)}>
+          <Icon size={24}>🤖</Icon>
+          <Text style={styles.bottomNavText}>المستشار</Text>
         </TouchableOpacity>
       </View>
-      {/* ===== زرار الشات العائم — بيفتح مستشار ATEEM فوق أي شاشة، بنفس
-          فكرة NativeChatOverlay القديمة، من غير ما يتداخل مع bottom nav ===== */}
-      <TouchableOpacity
-        style={styles.chatFab}
-        activeOpacity={0.85}
-        onPress={() => setChatOpen(true)}
-      >
-        <Text style={styles.chatFabIcon}>✦</Text>
-      </TouchableOpacity>
 
       <ChatOverlay
         visible={chatOpen}
@@ -407,8 +376,8 @@ const CARD_GAP = 12;
 const CARD_W = (width - 24 * 2 - CARD_GAP) / 2;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.ivory },
-  scrollContent: { paddingBottom: 70 },
+  safe: { flex: 1, backgroundColor: THEME.background },
+  scrollContent: { paddingBottom: 24 },
 
   // Navbar
   navbar: {
@@ -416,192 +385,166 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    paddingVertical: 14,
-    backgroundColor: 'rgba(245,241,232,0.95)',
+    paddingVertical: 16,
+    backgroundColor: THEME.background,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: THEME.border,
   },
-  menuBtn: { width: 36 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   brandWrap: { alignItems: 'center' },
-  brand: { fontSize: 20, letterSpacing: 3, color: COLORS.charcoal, fontWeight: '300' },
-  tagline: { fontSize: 8, letterSpacing: 2, color: COLORS.gold, marginTop: 2 },
-  navIcons: { flexDirection: 'row', alignItems: 'center', width: 60, justifyContent: 'flex-end' },
+  brand: { fontFamily: THEME.fontHeading, fontSize: 24, letterSpacing: 3, color: COLORS.burgundy },
+  tagline: { fontFamily: THEME.fontBody, fontSize: 8, letterSpacing: 2, color: COLORS.gold, marginTop: 3 },
   cartBadge: {
-    position: 'absolute', top: -6, left: -6, backgroundColor: COLORS.charcoal,
-    width: 15, height: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', top: 2, left: 2, backgroundColor: COLORS.burgundy,
+    width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
   },
-  cartBadgeText: { color: COLORS.ivory, fontSize: 8 },
+  cartBadgeText: { color: COLORS.white, fontSize: 9, fontFamily: THEME.fontBody },
 
   // Mobile menu
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(43,38,34,0.4)' },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(26,26,26,0.4)' },
   menuPanel: {
-    marginTop: 70, alignSelf: 'center', width: '70%', backgroundColor: COLORS.ivoryLight,
-    borderRadius: 8, paddingVertical: 10, paddingHorizontal: 22,
+    marginTop: 90, alignSelf: 'center', width: '72%', backgroundColor: THEME.card,
+    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 22,
   },
-  menuLinkRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  menuLinkText: { fontSize: 16, color: COLORS.ink },
+  menuLinkRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: THEME.border },
+  menuLinkText: { fontFamily: THEME.fontBody, fontSize: 16, color: THEME.textPrimary },
 
   // Hero
   hero: { paddingBottom: 10 },
   heroImage: { width: '100%', height: 380 },
   floatingCard: {
-    position: 'absolute', top: 340, left: 20, backgroundColor: 'rgba(255,255,255,0.96)',
-    padding: 16, maxWidth: 190, borderWidth: 1, borderColor: COLORS.ivoryDark,
+    position: 'absolute', top: 340, left: 20, backgroundColor: THEME.card,
+    padding: 16, maxWidth: 200, borderRadius: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 4,
   },
-  floatingLabel: { fontSize: 9, letterSpacing: 1.5, color: COLORS.gold, textTransform: 'uppercase', marginBottom: 4 },
-  floatingTitle: { fontSize: 15, color: COLORS.ink, marginBottom: 3 },
-  floatingPrice: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
-  floatingAdd: { fontSize: 10, letterSpacing: 1, color: COLORS.gold, textDecorationLine: 'underline' },
+  floatingLabel: { fontFamily: THEME.fontBody, fontSize: 9, letterSpacing: 1.5, color: COLORS.gold, textTransform: 'uppercase', marginBottom: 4 },
+  floatingTitle: { fontFamily: THEME.fontHeading, fontSize: 15, color: THEME.textPrimary, marginBottom: 3 },
+  floatingPrice: { fontFamily: THEME.fontBody, fontSize: 13, color: THEME.textPrice, marginBottom: 8 },
+  floatingAdd: { fontFamily: THEME.fontBody, fontSize: 10, letterSpacing: 1, color: COLORS.gold, textDecorationLine: 'underline' },
 
   heroText: { paddingHorizontal: 24, paddingTop: 28 },
   heroLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   heroLine: { width: 32, height: 1, backgroundColor: COLORS.gold, marginLeft: 10 },
-  heroLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
-  heroTitle: { fontSize: 44, lineHeight: 46, color: COLORS.ink, fontWeight: '300', marginBottom: 16 },
-  heroTitleItalic: { fontStyle: 'italic', color: COLORS.gold },
-  heroDesc: { color: COLORS.textMuted, fontSize: 15, lineHeight: 24, marginBottom: 24 },
+  heroLabel: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
+  heroTitle: { fontFamily: THEME.fontHeading, fontSize: 42, lineHeight: 48, color: THEME.textPrimary, marginBottom: 16 },
+  heroTitleItalic: { fontStyle: 'italic', color: COLORS.burgundy },
+  heroDesc: { fontFamily: THEME.fontBody, color: THEME.textSecondary, fontSize: 15, lineHeight: 24, marginBottom: 24 },
   heroButtons: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  btnPrimary: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 28 },
-  btnPrimaryText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
-  btnText: { color: COLORS.gold, fontSize: 12, letterSpacing: 1, textDecorationLine: 'underline' },
+  btnPrimary: { backgroundColor: COLORS.burgundy, paddingVertical: 14, paddingHorizontal: 28 },
+  btnPrimaryText: { fontFamily: THEME.fontBody, color: COLORS.white, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
+  btnText: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 12, letterSpacing: 1, textDecorationLine: 'underline' },
 
-  // Sections generic
-  section: { paddingHorizontal: 20, paddingVertical: 40 },
-  sectionAlt: { backgroundColor: 'rgba(255,255,255,0.5)' },
+  // Sections
+  section: { paddingHorizontal: 20, paddingVertical: 36 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 },
-  sectionLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
-  sectionTitle: { fontSize: 26, color: COLORS.ink, fontWeight: '300' },
-  viewAll: { color: COLORS.gold, fontSize: 12, letterSpacing: 1 },
+  sectionLabel: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
+  sectionTitle: { fontFamily: THEME.fontHeading, fontSize: 26, color: THEME.textPrimary },
+  viewAll: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 12, letterSpacing: 1 },
 
   // Categories
   categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, justifyContent: 'space-between' },
-  categoryCard: { width: CARD_W, height: CARD_W * 1.3, overflow: 'hidden', marginBottom: CARD_GAP },
+  categoryCard: { width: CARD_W, height: CARD_W * 1.3, overflow: 'hidden', marginBottom: CARD_GAP, borderRadius: 4 },
   categoryImage: { width: '100%', height: '100%' },
-  categoryOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(92,32,41,0.35)' },
+  categoryOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(107,30,46,0.35)' },
   categoryContent: { position: 'absolute', bottom: 14, right: 14, left: 14 },
-  categoryTitle: { fontSize: 20, color: '#fff', fontWeight: '300', marginBottom: 4 },
-  categoryCta: { fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.85)' },
+  categoryTitle: { fontFamily: THEME.fontHeading, fontSize: 20, color: '#fff', marginBottom: 4 },
+  categoryCta: { fontFamily: THEME.fontBody, fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.9)' },
 
   // Products
   productsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, justifyContent: 'space-between' },
-  productCard: { width: CARD_W, marginBottom: 20 },
-  productImageWrap: { width: '100%', height: CARD_W * 1.3, backgroundColor: COLORS.ivoryDark, marginBottom: 10, position: 'relative' },
+  productCard: { width: CARD_W, marginBottom: 20, backgroundColor: THEME.card, borderRadius: 8, padding: 8 },
+  productImageWrap: { width: '100%', height: CARD_W * 1.2, backgroundColor: THEME.background, marginBottom: 10, position: 'relative', borderRadius: 6, overflow: 'hidden' },
   productImage: { width: '100%', height: '100%' },
   productBadge: {
-    position: 'absolute', top: 10, right: 10, backgroundColor: COLORS.charcoal,
+    position: 'absolute', top: 10, right: 10, backgroundColor: COLORS.burgundy,
     paddingVertical: 4, paddingHorizontal: 8,
   },
   productBadgeGold: { backgroundColor: COLORS.gold },
-  productBadgeText: { color: COLORS.ivory, fontSize: 9, letterSpacing: 1 },
+  productBadgeText: { fontFamily: THEME.fontBody, color: COLORS.white, fontSize: 9, letterSpacing: 1 },
   addToCartBtn: {
     position: 'absolute', bottom: 10, left: 10, width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)', alignItems: 'center', justifyContent: 'center',
   },
-  productName: { fontSize: 14, color: COLORS.ink, marginBottom: 3 },
-  productPrice: { fontSize: 13, color: COLORS.gold },
+  productName: { fontFamily: THEME.fontBody, fontSize: 14, color: THEME.textPrimary, marginBottom: 3 },
+  productPrice: { fontFamily: THEME.fontBody, fontSize: 13, color: THEME.textPrice },
   productsStateWrap: { paddingVertical: 30, alignItems: 'center' },
-  productsStateText: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', paddingHorizontal: 20 },
+  productsStateText: { fontFamily: THEME.fontBody, color: THEME.textSecondary, fontSize: 13, textAlign: 'center', paddingHorizontal: 20 },
 
-  // زرار الشات العائم — فوق bottom nav (56px) بهامش مريح، بلون البراند
-  // الأساسي (charcoal/burgundy) وحلقة ذهبية رفيعة بدل حدود سميكة.
-  chatFab: {
-    position: 'absolute',
-    left: 18,
-    bottom: 56 + 18,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.charcoal,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(201,185,154,0.55)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  chatFabIcon: { color: COLORS.goldLight, fontSize: 22 },
-
-  // Lookbook
+  // Lookbook (فوتوغرافي، بيسيب overlay غامق للوضوح فوق الصور)
   lookbook: { backgroundColor: COLORS.charcoal, paddingVertical: 50, paddingHorizontal: 20 },
   lookbookHeader: { alignItems: 'center', marginBottom: 30 },
-  lookLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
-  lookTitle: { color: COLORS.ivory, fontSize: 28, fontWeight: '300', marginBottom: 8 },
-  lookSubtitle: { color: COLORS.goldLight, fontSize: 13 },
-  lookItem: { height: 220, marginBottom: 14, overflow: 'hidden' },
+  lookLabel: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
+  lookTitle: { fontFamily: THEME.fontHeading, color: COLORS.white, fontSize: 28, marginBottom: 8 },
+  lookSubtitle: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 13 },
+  lookItem: { height: 220, marginBottom: 14, overflow: 'hidden', borderRadius: 4 },
   lookImage: { width: '100%', height: '100%' },
   lookOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0, top: 0, justifyContent: 'flex-end',
-    padding: 18, backgroundColor: 'rgba(92,32,41,0.35)',
+    padding: 18, backgroundColor: 'rgba(107,30,46,0.35)',
   },
-  lookNumber: { position: 'absolute', top: 10, right: 16, fontSize: 40, color: 'rgba(245,241,232,0.2)' },
-  lookItemTitle: { color: '#fff', fontSize: 18, fontWeight: '300', marginBottom: 4 },
-  lookSeason: { color: COLORS.goldLight, fontSize: 10, letterSpacing: 1.5 },
+  lookNumber: { position: 'absolute', top: 10, right: 16, fontFamily: THEME.fontHeading, fontSize: 40, color: 'rgba(245,239,230,0.2)' },
+  lookItemTitle: { fontFamily: THEME.fontHeading, color: '#fff', fontSize: 18, marginBottom: 4 },
+  lookSeason: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 10, letterSpacing: 1.5 },
   lookFooterBtn: {
     alignSelf: 'center', marginTop: 20, paddingVertical: 14, paddingHorizontal: 36,
-    borderWidth: 1, borderColor: 'rgba(245,241,232,0.4)',
+    borderWidth: 1, borderColor: 'rgba(245,239,230,0.4)',
   },
-  lookFooterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
+  lookFooterBtnText: { fontFamily: THEME.fontBody, color: COLORS.white, fontSize: 12, letterSpacing: 1.5 },
 
   // Craftsmanship
   craft: { paddingHorizontal: 20, paddingVertical: 50 },
   craftImageWrap: { position: 'relative', marginBottom: 40 },
   craftImage: { width: '100%', height: 320, borderRadius: 4 },
-  craftStat: { position: 'absolute', bottom: -20, left: 10, backgroundColor: COLORS.charcoal, padding: 20 },
-  craftStatNumber: { color: COLORS.ivory, fontSize: 36, fontWeight: '300' },
-  craftStatDesc: { color: COLORS.goldLight, fontSize: 10, letterSpacing: 1, marginTop: 6, lineHeight: 16 },
+  craftStat: { position: 'absolute', bottom: -20, left: 10, backgroundColor: COLORS.burgundy, padding: 20 },
+  craftStatNumber: { fontFamily: THEME.fontHeading, color: COLORS.white, fontSize: 36 },
+  craftStatDesc: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 10, letterSpacing: 1, marginTop: 6, lineHeight: 16 },
   craftContent: {},
-  craftHeading: { fontSize: 26, color: COLORS.ink, fontWeight: '300', lineHeight: 32, marginBottom: 16, marginTop: 8 },
-  craftParagraph: { color: COLORS.textMuted, lineHeight: 24, marginBottom: 12 },
-  craftLink: { color: COLORS.ink, fontSize: 12, letterSpacing: 1.5, marginTop: 10, textDecorationLine: 'underline' },
+  craftHeading: { fontFamily: THEME.fontHeading, fontSize: 26, color: THEME.textPrimary, lineHeight: 34, marginBottom: 16, marginTop: 8 },
+  craftParagraph: { fontFamily: THEME.fontBody, color: THEME.textSecondary, lineHeight: 24, marginBottom: 12 },
+  craftLink: { fontFamily: THEME.fontBody, color: COLORS.burgundy, fontSize: 12, letterSpacing: 1.5, marginTop: 10, textDecorationLine: 'underline' },
 
   // Editorial
   editorial: { height: 320, position: 'relative' },
   editorialImage: { width: '100%', height: '100%' },
   editorialOverlay: {
-    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(92,32,41,0.45)',
+    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(107,30,46,0.5)',
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30,
   },
-  editorialLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 },
-  editorialTitle: { color: '#fff', fontSize: 30, fontWeight: '300', textAlign: 'center', lineHeight: 36, marginBottom: 20 },
-  editorialBtn: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 14, paddingHorizontal: 32 },
-  editorialBtnText: { color: '#fff', fontSize: 12, letterSpacing: 1.5 },
+  editorialLabel: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 },
+  editorialTitle: { fontFamily: THEME.fontHeading, color: '#fff', fontSize: 30, textAlign: 'center', lineHeight: 38, marginBottom: 20 },
+  editorialBtn: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)', paddingVertical: 14, paddingHorizontal: 32 },
+  editorialBtnText: { fontFamily: THEME.fontBody, color: '#fff', fontSize: 12, letterSpacing: 1.5 },
 
   // Trust
   trustGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   trustItem: { width: '48%', alignItems: 'center', marginBottom: 24 },
-  trustTitle: { fontSize: 15, color: COLORS.ink, marginBottom: 4 },
-  trustDesc: { fontSize: 10, color: COLORS.gold, letterSpacing: 1, textAlign: 'center' },
+  trustTitle: { fontFamily: THEME.fontHeading, fontSize: 15, color: THEME.textPrimary, marginBottom: 4 },
+  trustDesc: { fontFamily: THEME.fontBody, fontSize: 10, color: COLORS.gold, letterSpacing: 1, textAlign: 'center' },
 
-  // Newsletter
-  newsletter: { paddingHorizontal: 24, paddingVertical: 50, alignItems: 'center' },
-  newsletterTitle: { fontSize: 24, color: COLORS.ink, fontWeight: '300', marginBottom: 10, textAlign: 'center' },
-  newsletterDesc: { color: COLORS.textMuted, textAlign: 'center', marginBottom: 24 },
-  newsletterInput: {
-    width: '100%', borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#fff',
-    paddingVertical: 14, paddingHorizontal: 18, marginBottom: 12, textAlign: 'right',
+  // إشعارات (تنظيم وحجم أصغر، خلفية عاجية موحّدة)
+  notifyCard: {
+    marginHorizontal: 20, marginTop: 10, marginBottom: 30,
+    backgroundColor: THEME.card, borderRadius: 12, padding: 20,
+    alignItems: 'center', borderWidth: 1, borderColor: THEME.border,
   },
-  newsletterBtn: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 30, width: '100%', alignItems: 'center' },
-  newsletterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
+  notifyIcon: { fontSize: 22, marginBottom: 6 },
+  notifyTitle: { fontFamily: THEME.fontHeading, fontSize: 17, color: THEME.textPrimary, marginBottom: 4, textAlign: 'center' },
+  notifyDesc: { fontFamily: THEME.fontBody, fontSize: 11.5, color: THEME.textSecondary, textAlign: 'center', marginBottom: 14, lineHeight: 17 },
+  notifyRow: { flexDirection: 'row', width: '100%', gap: 8 },
+  notifyInput: {
+    flex: 1, borderWidth: 1, borderColor: THEME.border, backgroundColor: THEME.background,
+    borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14, fontFamily: THEME.fontBody, fontSize: 12.5, textAlign: 'right', color: THEME.textPrimary,
+  },
+  notifyBtn: { backgroundColor: COLORS.gold, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  notifyBtnText: { fontFamily: THEME.fontBody, color: COLORS.burgundy, fontSize: 12, fontWeight: '600' },
 
-  // Footer
-  footer: { backgroundColor: COLORS.charcoal, paddingHorizontal: 24, paddingVertical: 50 },
-  footerBrand: { color: COLORS.ivory, fontSize: 20, letterSpacing: 3, marginBottom: 10 },
-  footerTagline: { color: COLORS.goldLight, fontSize: 13, lineHeight: 20, marginBottom: 28 },
-  footerCol: { marginBottom: 24 },
-  footerColTitle: { color: COLORS.gold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
-  footerLink: { color: COLORS.goldLight, fontSize: 14, marginBottom: 8 },
-  footerBottom: { color: COLORS.gold, fontSize: 10, letterSpacing: 1, marginTop: 10, textAlign: 'center' },
-
-  // Bottom nav
+  // Bottom nav الجديد
   bottomNav: {
-    flexDirection: 'row', height: 56, backgroundColor: 'rgba(250,248,243,0.98)',
-    borderTopWidth: 1, borderTopColor: 'rgba(139,115,85,0.25)',
+    flexDirection: 'row', height: 68, backgroundColor: THEME.card,
+    borderTopWidth: 1, borderTopColor: THEME.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 10,
   },
-  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
-  bottomNavText: { fontSize: 9, color: COLORS.ink, letterSpacing: 0.5 },
-  bottomNavActive: { color: COLORS.gold },
+  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  bottomNavText: { fontFamily: THEME.fontBody, fontSize: 10, color: THEME.textSecondary, letterSpacing: 0.3 },
+  bottomNavActive: { color: COLORS.gold, fontWeight: '600' },
 });
-
