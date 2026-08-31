@@ -6,31 +6,22 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F5F1E8",
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "backgroundColor": "#F5F1E8",
-      "resizeMode": "contain"
-    },
-    "androidStatusBar": {
-      "hidden": true,
-      "translucent": true,
-      "barStyle": "dark-content"
-    },
     "android": {
       "package": "com.ateem.store",
       "versionCode": 1,
       "backgroundColor": "#F5F1E8",
-      "edgeToEdgeEnabled": true,
-      "permissions": ["NOTIFICATIONS"],
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F5F1E8"
+      "googleServicesFile": "./google-services.json",
+      "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"]
+    },
+    "ios": {
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "يحتاج ATEEM الوصول لميكروفونك عشان يسمعك في الشات.",
+        "NSSpeechRecognitionUsageDescription": "يحتاج ATEEM يحوّل كلامك لنص داخل الشات."
       }
     },
+    "plugins": ["./withImmersiveMode.js", "expo-notifications"],
     "extra": {
       "eas": {}
-    },
-    "plugins": ["./plugins/withImmersiveMode"]
+    }
   }
 }
