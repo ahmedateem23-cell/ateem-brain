@@ -26,5 +26,4 @@ export const THEME = {
   fontBody: 'Inter_400Regular',
   fontBodyMedium: 'Inter_500Medium',
   fontBodySemiBold: 'Inter_600SemiBold',
-  fontBodyBold: 'Inter_700Bold',
 };
