@@ -109,13 +109,39 @@ ${ATEEM_POLICY_TEXT}
 - تذكّري اسم العميل ومقاسه وألوانه المفضلة خلال المحادثة نفسها.`;
 }
 
+// استخراج [ORDER_JSON]...[/ORDER_JSON] من رد الموديل. الحالة العادية:
+// الوسمين موجودين بالكامل، فبنستخرج الـ JSON ونشيل الوسم بالكامل من
+// النص المعروض للعميل. لو الموديل حاد عن الصيغة (وسم ناقص/مشوّه) بننزل
+// لخطة احتياطية تحت بدل ما نسيب JSON خام يظهر للعميل.
 function extractOrderJson(text) {
   const match = text.match(/\[ORDER_JSON\]([\s\S]*?)\[\/ORDER_JSON\]/);
-  if (!match) return { displayText: text, orderData: null };
-  let orderData = null;
-  try { orderData = JSON.parse(match[1]); } catch (e) { orderData = null; }
-  const displayText = text.replace(match[0], '').trim();
-  return { displayText, orderData };
+  if (match) {
+    let orderData = null;
+    try { orderData = JSON.parse(match[1]); } catch (e) { orderData = null; }
+    const displayText = text.replace(match[0], '').trim();
+    return { displayText, orderData };
+  }
+
+  // خطة احتياطية: لو الوسم ناقص أو مشوّه لكن الموديل لسه سايب جسم JSON
+  // فيه "product_id" ظاهر في النص، ندوّر عليه كـ كتلة {...} ونشيله من
+  // النص المعروض حتى لو معندناش وسم صحيح بالكامل نعتمد عليه. مفيش براces
+  // متداخلة في شكل ORDER_JSON فالـ regex البسيط ده كافي وآمن.
+  const looseJsonMatch = text.match(/\{[^{}]*"product_id"[^{}]*\}/);
+  if (looseJsonMatch) {
+    let orderData = null;
+    try { orderData = JSON.parse(looseJsonMatch[0]); } catch (e) { orderData = null; }
+    const displayText = text
+      .replace(looseJsonMatch[0], '')
+      .replace(/\[\/?ORDER_JSON\]/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    return { displayText, orderData };
+  }
+
+  // مفيش JSON خالص، بس ممكن يكون فيه وسوم فاضية (بلا محتوى) اتسابت
+  // بالغلط — بنشيلها تحسبًا فقط، النص الأصلي بيفضل زي ما هو غير كده.
+  const cleanedText = text.replace(/\[\/?ORDER_JSON\]/g, '').trim();
+  return { displayText: cleanedText, orderData: null };
 }
 
 function extractProductIds(text, products) {
@@ -286,6 +312,35 @@ export default function ChatOverlay({ visible, onClose, products }) {
       shouldDuckAndroid: true,
       allowsRecordingIOS: false,
     }).catch((e) => console.warn('ATEEM: تعذّر ضبط وضع الصوت:', e));
+  }, []);
+
+  // مستمع إشعارات الـ Push: طول ما الشات (المكوّن) شغّال، أي إشعار
+  // "order_confirmed" جاي من الـ Worker (بعد تأكيد أحمد للطلب من تليجرام)
+  // بيتحوّل تلقائيًا لرسالة بوت جوه الشات — العميل بيشوف التأكيد وهو
+  // فاتح الشات من غير ما يحتاج يقفل ويفتح التطبيق تاني. التنظيف تحت في
+  // return بيشيل المستمع عند تفكيك المكوّن عشان مفيش تسريب ذاكرة.
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request?.content?.data;
+      if (data && data.type === 'order_confirmed') {
+        const orderName = data.orderName || '';
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextMsgId(),
+            role: 'bot',
+            text: `🎉 تم تأكيد طلبك بنجاح! رقم الطلب: ${orderName}`,
+            time: nowTime(),
+            productIds: [],
+          },
+        ]);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+      }
+    });
+
+    return () => {
+      Notifications.removeNotificationSubscription(subscription);
+    };
   }, []);
 
   useEffect(() => {
@@ -505,7 +560,9 @@ export default function ChatOverlay({ visible, onClose, products }) {
             {/* ===== Header ===== */}
             <View style={cs.header}>
               <View style={cs.headerContent}>
-                <Image source={require('./assets/bot-avatar.png')} style={cs.logoImg} />
+                <View style={cs.logoImgWrap}>
+                  <Image source={require('./assets/bot-avatar.png')} style={cs.logoImg} />
+                </View>
                 <View>
                   <Text style={cs.title}>ATEEM Concierge</Text>
                   <View style={cs.subRow}>
@@ -667,9 +724,18 @@ const cs = StyleSheet.create({
     borderBottomColor: COLORS.gold,
   },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // دائرة خلفية فاتحة (بيج/ذهبي فاتح) خلف شعار الروبوت نفسه — الشعار
+  // بخلفيته الفاتحة الأصلية كان بيضيع على العنابي الغامق للهيدر. الدائرة
+  // دي بتدي تباين واضح بغض النظر عن شفافية ملف الصورة نفسه.
+  logoImgWrap: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: THEME.background,
+    borderWidth: 2, borderColor: COLORS.gold,
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
+  },
   logoImg: {
     width: 42, height: 42, borderRadius: 21,
-    borderWidth: 2, borderColor: COLORS.gold,
   },
   title: { fontFamily: THEME.fontHeading, color: COLORS.white, fontSize: 17 },
   subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
@@ -691,7 +757,7 @@ const cs = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 14,
     borderRadius: 18, borderTopLeftRadius: 4,
   },
-  userText: { fontFamily: THEME.fontBody, color: COLORS.white, fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
+  userText: { fontFamily: THEME.fontBody, color: COLORS.white, fontSize: 13.5, lineHeight: 21, textAlign: 'right' },
   timeUser: { fontFamily: THEME.fontBody, fontSize: 9, color: THEME.textSecondary, marginTop: 2, paddingHorizontal: 4 },
 
   botWrap: { alignItems: 'flex-end', maxWidth: '92%', alignSelf: 'flex-end' },
@@ -701,7 +767,7 @@ const cs = StyleSheet.create({
     borderRadius: 18, borderTopRightRadius: 4,
     borderWidth: 1, borderColor: THEME.border,
   },
-  botText: { fontFamily: THEME.fontBody, color: THEME.textPrimary, fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
+  botText: { fontFamily: THEME.fontBody, color: THEME.textPrimary, fontSize: 13.5, lineHeight: 21, textAlign: 'right' },
   botMetaRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginTop: 2 },
   timeBot: { fontFamily: THEME.fontBody, fontSize: 9, color: THEME.textSecondary, paddingHorizontal: 4 },
   ttsBtn: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
@@ -759,3 +825,4 @@ const cs = StyleSheet.create({
   },
   sendBtnText: { color: COLORS.white, fontSize: 17, transform: [{ scaleX: -1 }] },
 });
+
