@@ -15,6 +15,9 @@
     "react": "18.2.0",
     "react-native": "0.74.5",
     "@react-native-voice/voice": "^3.2.4"
+    "expo-font": "~13.0.1",
+"@expo-google-fonts/playfair-display": "^0.2.3",
+"@expo-google-fonts/inter": "^0.2.3",
   },
   "devDependencies": {
     "@expo/cli": "^0.18.0"
