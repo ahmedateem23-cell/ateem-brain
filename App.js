@@ -358,7 +358,7 @@ export default function App() {
           <Text style={styles.bottomNavText}>المتجر</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.bottomNavBtn} onPress={() => setChatOpen(true)}>
-          <Icon size={24}>🤖</Icon>
+          <Image source={require('./assets/bot-avatar.png')} style={styles.bottomNavBotIcon} />
           <Text style={styles.bottomNavText}>المستشار</Text>
         </TouchableOpacity>
       </View>
@@ -547,4 +547,5 @@ const styles = StyleSheet.create({
   bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   bottomNavText: { fontFamily: THEME.fontBody, fontSize: 10, color: THEME.textSecondary, letterSpacing: 0.3 },
   bottomNavActive: { color: COLORS.gold, fontWeight: '600' },
+  bottomNavBotIcon: { width: 30, height: 30, borderRadius: 15 },
 });
