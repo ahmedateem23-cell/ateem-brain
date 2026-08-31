@@ -96,8 +96,9 @@ const LineIcon = ({ name, size = 22, color = COLORS.ink, strokeWidth = 1.6 }) =>
     case 'bag':
       return (
         <Svg {...common}>
-          <Path d="M6.5 8h11l-0.9 12.2a1 1 0 0 1-1 0.8H8.4a1 1 0 0 1-1-0.8L6.5 8z" />
-          <Path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
+          <Path d="M6 9.2 7.4 5h9.2l1.4 4.2" />
+          <Path d="M6 9.2h12l-0.85 11a1.3 1.3 0 0 1-1.3 1.2H8.15a1.3 1.3 0 0 1-1.3-1.2L6 9.2z" />
+          <Path d="M9.3 11.3a2.7 2.7 0 0 0 5.4 0" />
         </Svg>
       );
     case 'home':
@@ -227,7 +228,7 @@ export default function App() {
         {/* ===== Hero ===== */}
         <View style={styles.hero}>
           <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&q=90' }}
+            source={{ uri: 'https://images.unsplash.com/photo-1770582071285-e5d2ef206180?w=1400&q=90' }}
             style={styles.heroImage}
           />
           <View style={styles.floatingCard}>
@@ -434,7 +435,7 @@ export default function App() {
           <TouchableOpacity key={item.key} style={styles.bottomNavBtn}>
             <LineIcon
               name={item.icon}
-              size={19}
+              size={25}
               color={item.active ? COLORS.gold : COLORS.ink}
               strokeWidth={1.6}
             />
@@ -459,7 +460,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingVertical: 10,
     backgroundColor: 'rgba(245,241,232,0.95)',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -486,9 +487,9 @@ const styles = StyleSheet.create({
 
   // Hero
   hero: { paddingBottom: 10 },
-  heroImage: { width: '100%', height: 300 },
+  heroImage: { width: '100%', height: 240 },
   floatingCard: {
-    position: 'absolute', top: 205, left: 20, backgroundColor: 'rgba(255,255,255,0.97)',
+    position: 'absolute', top: 150, left: 20, backgroundColor: 'rgba(255,255,255,0.97)',
     padding: 16, maxWidth: 190, borderWidth: 1, borderColor: COLORS.ivoryDark,
   },
   floatingLabel: { fontSize: 9, letterSpacing: 1.5, color: COLORS.gold, textTransform: 'uppercase', marginBottom: 4 },
@@ -496,7 +497,7 @@ const styles = StyleSheet.create({
   floatingPrice: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
   floatingAdd: { fontSize: 10, letterSpacing: 1, color: COLORS.gold, textDecorationLine: 'underline' },
 
-  heroText: { paddingHorizontal: 24, paddingTop: 70 },
+  heroText: { paddingHorizontal: 24, paddingTop: 60 },
   heroLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   heroLine: { width: 32, height: 1, backgroundColor: COLORS.gold, marginLeft: 10 },
   heroLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
@@ -629,8 +630,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', height: 60, backgroundColor: 'rgba(250,248,243,0.98)',
     borderTopWidth: 1, borderTopColor: 'rgba(139,115,85,0.25)',
   },
-  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  bottomNavText: { fontSize: 9, color: COLORS.ink, letterSpacing: 0.5 },
+  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  bottomNavText: { fontSize: 8.5, color: COLORS.ink, letterSpacing: 0.5 },
   bottomNavActive: { color: COLORS.gold },
 });
 
