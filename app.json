@@ -19,7 +19,10 @@
         "NSSpeechRecognitionUsageDescription": "يحتاج ATEEM يحوّل كلامك لنص داخل الشات."
       }
     },
-    "plugins": ["./withImmersiveMode.js", "expo-notifications"],
+    "plugins": [
+  "./plugins/withImmersiveMode.js",
+  ...
+    ]
     "extra": {
       "eas": {}
     }
