@@ -12,11 +12,9 @@ import {
   I18nManager,
   Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import * as NavigationBar from 'expo-navigation-bar';
-import * as Notifications from 'expo-notifications';
-import Svg, { Path, Circle, Line } from 'react-native-svg';
+import ChatOverlay from './ChatOverlay';
 
 // فرض اتجاه RTL للتطبيق بالكامل (يفضّل ضبطه أيضاً في app.json وإعادة تشغيل التطبيق)
 I18nManager.allowRTL(true);
@@ -24,7 +22,7 @@ I18nManager.forceRTL(true);
 
 const { width } = Dimensions.get('window');
 
-const COLORS = {
+export const COLORS = {
   ivory: '#F5F1E8',
   ivoryLight: '#FAF8F3',
   ivoryDark: '#E8DFD0',
@@ -32,14 +30,19 @@ const COLORS = {
   goldLight: '#C9B99A',
   charcoal: '#5C2029',
   ink: '#2B2622',
-  // تباين أعلى مع الخلفيات الفاتحة (كانت #6B5B4F / #A99E8E)
-  textMuted: '#4E4034',
-  textSubtle: '#7A6A57',
+  textMuted: '#6B5B4F',
+  textSubtle: '#A99E8E',
   border: '#DDD5C4',
   white: '#FFFFFF',
 };
 
-// ---------- بيانات الصفحة ----------
+// ---------- الاتصال بالمتجر الحقيقي عبر الـ Worker (نفس الـ proxy اللي
+// بيستخدمه البوت) — المفتاح السري لـ Odoo متخزّن سيرفر-سايد فقط، التطبيق
+// هنا بينادي على /odoo-products بس ومفيش أي سر بيتشحن جوه الـ APK ----------
+const ATEEM_PROXY_URL = 'https://ateem-proxy.ahmedatim23.workers.dev/';
+
+// الفئات ومعرض الأزياء (Lookbook) لسه محتوى تحريري ثابت بعناية — Odoo
+// معندوش صور غلاف/قصص لكل فئة، فده جزء تصميمي مش بيانات مخزون بتتغيّر.
 const CATEGORIES = [
   { id: 'women', title: 'نساء', cta: 'اكتشفي المزيد', img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500&q=80' },
   { id: 'men', title: 'رجال', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=500&q=80' },
@@ -47,12 +50,9 @@ const CATEGORIES = [
   { id: 'jewelry', title: 'مجوهرات', cta: 'اكتشف المزيد', img: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&q=80' },
 ];
 
-const PRODUCTS = [
-  { id: 'p1', name: 'معطف كشمير طويل', price: '89,000 SDG', badge: 'جديد', img: 'https://images.unsplash.com/photo-1591561954557-26941169b49e?w=500&q=80' },
-  { id: 'p2', name: 'حقيبة يد جلدية', price: '152,000 SDG', badge: null, img: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500&q=80' },
-  { id: 'p3', name: 'بدلة رسمية كلاسيكية', price: '220,000 SDG', badge: 'محدود', img: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=500&q=80' },
-  { id: 'p4', name: 'خاتم ذهبي مرصع', price: '185,000 SDG', badge: null, img: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500&q=80' },
-];
+// PRODUCTS: بيتحمّل فعلياً من Odoo جوه App() تحت (useEffect) — نفس
+// الـ feed اللي البوت بيستخدمه، عشان يعكس المخزون الحقيقي المنشور
+// دلوقتي بالظبط، بدون أي منتج وهمي أو ثابت في الكود.
 
 const LOOKS = [
   { id: 'l1', title: 'الأناقة المسائية', season: 'خريف / شتاء 2026', img: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&q=80' },
@@ -71,121 +71,53 @@ const TRUST_ITEMS = [
   { title: 'تغليف فاخر', desc: 'هدايا حصرية مع كل طلب' },
 ];
 
-// ---------- أيقونات خطية (SVG) راقية بدل الإيموجي ----------
-const LineIcon = ({ name, size = 22, color = COLORS.ink, strokeWidth = 1.6 }) => {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: color,
-    strokeWidth,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-  };
-
-  switch (name) {
-    case 'menu':
-      return (
-        <Svg {...common}>
-          <Line x1="3.5" y1="6.5" x2="20.5" y2="6.5" />
-          <Line x1="3.5" y1="12" x2="20.5" y2="12" />
-          <Line x1="3.5" y1="17.5" x2="20.5" y2="17.5" />
-        </Svg>
-      );
-    case 'bag':
-      return (
-        <Svg {...common}>
-          <Path d="M6 9.2 7.4 5h9.2l1.4 4.2" />
-          <Path d="M6 9.2h12l-0.85 11a1.3 1.3 0 0 1-1.3 1.2H8.15a1.3 1.3 0 0 1-1.3-1.2L6 9.2z" />
-          <Path d="M9.3 11.3a2.7 2.7 0 0 0 5.4 0" />
-        </Svg>
-      );
-    case 'home':
-      return (
-        <Svg {...common}>
-          <Path d="M3.5 11.5 12 4l8.5 7.5" />
-          <Path d="M5.5 10v9.5a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V10" />
-        </Svg>
-      );
-    case 'search':
-      return (
-        <Svg {...common}>
-          <Circle cx="11" cy="11" r="6.5" />
-          <Line x1="20" y1="20" x2="16" y2="16" />
-        </Svg>
-      );
-    case 'user':
-      return (
-        <Svg {...common}>
-          <Circle cx="12" cy="8.2" r="3.8" />
-          <Path d="M4.5 20c0.7-3.8 4-5.8 7.5-5.8s6.8 2 7.5 5.8" />
-        </Svg>
-      );
-    case 'plus':
-      return (
-        <Svg {...common}>
-          <Line x1="12" y1="5.5" x2="12" y2="18.5" />
-          <Line x1="5.5" y1="12" x2="18.5" y2="12" />
-        </Svg>
-      );
-    default:
-      return null;
-  }
-};
+// ---------- أيقونات بسيطة (نص/رموز بدل مكتبة أيقونات خارجية) ----------
+const Icon = ({ children, size = 20, color = COLORS.ink }) => (
+  <Text style={{ fontSize: size, color }}>{children}</Text>
+);
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount] = useState(2);
+  const [chatOpen, setChatOpen] = useState(false);
 
-  // شاشة ملء كاملة: إخفاء شريط الحالة العلوي وشريط التنقل السفلي للنظام
-  const hideSystemBars = async () => {
-    try {
-      await NavigationBar.setVisibilityAsync('hidden');
-      await NavigationBar.setBehaviorAsync('overlay-swipe');
-    } catch (e) {
-      // بعض الأجهزة/أوضاع التشغيل لا تدعم التحكم ببار التنقل، نتجاهل بهدوء
-    }
-  };
+  // منتجات حقيقية من Odoo عبر /odoo-products — نفس المصدر اللي بيستخدمه
+  // البوت، فمفيش أي احتمال إن الواجهة تعرض حاجة والبوت يرشّح حاجة تانية.
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState(false);
 
   useEffect(() => {
-    hideSystemBars();
-  }, []);
-
-  // فتح أي Modal (زي القائمة الجانبية) بيعمل نافذة Android جديدة بتُرجع
-  // إظهار أشرطة النظام تلقائياً، فلازم نطبّق الإخفاء تاني بعد كل فتح/قفل
-  useEffect(() => {
-    hideSystemBars();
-  }, [menuOpen]);
-
-  // إعادة فرض الوضع الغامر (immersive) دورياً، لأن Android بيرجّع إظهار
-  // الأشرطة تلقائياً مع أي تفاعل نظام (سحبة، تنبيه، تغيير تركيز) مش بس فتح Modal
-  useEffect(() => {
-    const interval = setInterval(hideSystemBars, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // طلب إذن الإشعارات بشكل غير مزعج عند أول فتح للتطبيق
-  useEffect(() => {
-    (async () => {
+    let cancelled = false;
+    async function loadProducts() {
+      setProductsLoading(true);
+      setProductsError(false);
       try {
-        const { status: existing } = await Notifications.getPermissionsAsync();
-        if (existing !== 'granted') {
-          await Notifications.requestPermissionsAsync();
-        }
+        const res = await fetch(ATEEM_PROXY_URL + 'odoo-products');
+        const data = await res.json();
+        if (!data.ok || !Array.isArray(data.products)) throw new Error('bad payload');
+        if (!cancelled) setProducts(data.products);
       } catch (e) {
-        // لو رفض المستخدم أو فشل الطلب، لا نوقف التطبيق
+        if (!cancelled) { setProducts([]); setProductsError(true); }
+      } finally {
+        if (!cancelled) setProductsLoading(false);
       }
-    })();
+    }
+    loadProducts();
+    return () => { cancelled = true; };
   }, []);
+
+  function fmtOdooPrice(p) {
+    const n = Number(p.price) || 0;
+    return n.toLocaleString('en-US') + ' ' + (p.currency || 'SDG');
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar hidden translucent backgroundColor="transparent" style="dark" />
       {/* ===== Header ===== */}
       <View style={styles.navbar}>
         <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.menuBtn}>
-          <LineIcon name="menu" size={28} color={COLORS.charcoal} />
+          <Icon size={22}>☰</Icon>
         </TouchableOpacity>
 
         <View style={styles.brandWrap}>
@@ -194,8 +126,11 @@ export default function App() {
         </View>
 
         <View style={styles.navIcons}>
+          <TouchableOpacity style={{ marginLeft: 14 }}>
+            <Icon size={18}>🔍</Icon>
+          </TouchableOpacity>
           <TouchableOpacity>
-            <LineIcon name="bag" size={26} color={COLORS.charcoal} />
+            <Icon size={18}>🛍️</Icon>
             {cartCount > 0 && (
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>{cartCount}</Text>
@@ -206,13 +141,7 @@ export default function App() {
       </View>
 
       {/* ===== القائمة الجانبية ===== */}
-      <Modal
-        visible={menuOpen}
-        transparent
-        animationType="fade"
-        onShow={hideSystemBars}
-        onRequestClose={() => setMenuOpen(false)}
-      >
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
           <View style={styles.menuPanel}>
             {[...NAV_LINKS, 'تواصل معنا'].map((link) => (
@@ -227,10 +156,7 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* ===== Hero ===== */}
         <View style={styles.hero}>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1575032617751-6ddec2089882?w=1400&q=90' }}
-            style={styles.heroImage}
-          />
+          <Image source={{ uri: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=900&q=80' }} style={styles.heroImage} />
           <View style={styles.floatingCard}>
             <Text style={styles.floatingLabel}>القطعة المميزة</Text>
             <Text style={styles.floatingTitle}>حقيبة كتف جلدية</Text>
@@ -291,25 +217,42 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.productsGrid}>
-            {PRODUCTS.map((p) => (
-              <TouchableOpacity key={p.id} style={styles.productCard}>
-                <View style={styles.productImageWrap}>
-                  <Image source={{ uri: p.img }} style={styles.productImage} />
-                  {p.badge && (
-                    <View style={[styles.productBadge, p.badge === 'محدود' && styles.productBadgeGold]}>
-                      <Text style={styles.productBadgeText}>{p.badge}</Text>
-                    </View>
-                  )}
-                  <TouchableOpacity style={styles.addToCartBtn}>
-                    <LineIcon name="plus" size={16} color={COLORS.charcoal} strokeWidth={1.8} />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.productName}>{p.name}</Text>
-                <Text style={styles.productPrice}>{p.price}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {productsLoading && (
+            <View style={styles.productsStateWrap}>
+              <ActivityIndicator color={COLORS.gold} />
+            </View>
+          )}
+          {!productsLoading && productsError && (
+            <View style={styles.productsStateWrap}>
+              <Text style={styles.productsStateText}>تعذّر تحميل المنتجات الآن — تأكد من اتصالك وحاول مجدداً.</Text>
+            </View>
+          )}
+          {!productsLoading && !productsError && products.length === 0 && (
+            <View style={styles.productsStateWrap}>
+              <Text style={styles.productsStateText}>لا توجد منتجات منشورة حالياً.</Text>
+            </View>
+          )}
+          {!productsLoading && !productsError && products.length > 0 && (
+            <View style={styles.productsGrid}>
+              {products.map((p) => (
+                <TouchableOpacity key={p.id} style={styles.productCard}>
+                  <View style={styles.productImageWrap}>
+                    <Image source={{ uri: p.image }} style={styles.productImage} />
+                    {p.badge && (
+                      <View style={[styles.productBadge, p.isBestSeller && styles.productBadgeGold]}>
+                        <Text style={styles.productBadgeText}>{p.badge}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity style={styles.addToCartBtn}>
+                      <Icon size={14}>+</Icon>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.productName}>{p.name}</Text>
+                  <Text style={styles.productPrice}>{fmtOdooPrice(p)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ===== Lookbook ===== */}
@@ -389,52 +332,73 @@ export default function App() {
           </View>
         </View>
 
-        {/* ===== Newsletter (Compact Luxury Invitation) ===== */}
-        <View style={styles.newsletterCard}>
-          <Text style={styles.newsletterTitle}>كن أول من يكتشف الجديد</Text>
-          <Text style={styles.newsletterDesc}>وصل أحدث المجموعات والعروض المختارة أولًا</Text>
-          <View style={styles.newsletterRow}>
-            <TextInput
-              style={styles.newsletterInput}
-              placeholder="بريدك الإلكتروني"
-              placeholderTextColor={COLORS.textSubtle}
-              keyboardType="email-address"
-            />
-            <TouchableOpacity style={styles.newsletterBtn}>
-              <Text style={styles.newsletterBtnText}>اشترك</Text>
-            </TouchableOpacity>
-          </View>
+        {/* ===== Newsletter ===== */}
+        <View style={styles.newsletter}>
+          <Text style={styles.sectionLabel}>كن ضمن دائرتنا الخاصة</Text>
+          <Text style={styles.newsletterTitle}>اشترك في نشرتنا الإخبارية</Text>
+          <Text style={styles.newsletterDesc}>كن أول من يطلع على المجموعات الجديدة والعروض الحصرية.</Text>
+          <TextInput style={styles.newsletterInput} placeholder="بريدك الإلكتروني" placeholderTextColor={COLORS.textSubtle} keyboardType="email-address" />
+          <TouchableOpacity style={styles.newsletterBtn}>
+            <Text style={styles.newsletterBtnText}>اشتراك</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* ===== لمسة ختامية بسيطة جداً ===== */}
-        <View style={styles.closingMark}>
-          <Text style={styles.closingBrand}>ATEEM</Text>
-          <Text style={styles.closingTagline}>Sudan · Modern Luxury</Text>
-        </View>
+        {/* ===== Footer ===== */}
+        <View style={styles.footer}>
+          <Text style={styles.footerBrand}>ATEEM</Text>
+          <Text style={styles.footerTagline}>أناقة رجالية ونسائية فاخرة، بروح عصرية هادئة. قطع تروي قصة لا تُنسى.</Text>
 
+          {[
+            { title: 'تسوق', links: ['نساء', 'رجال', 'إكسسوارات', 'مجوهرات', 'هدايا'] },
+            { title: 'العلامة التجارية', links: ['قصتنا', 'الحرفية', 'الاستدامة', 'الوظائف'] },
+            { title: 'خدمة العملاء', links: ['تواصل معنا', 'الشحن والإرجاع', 'الأسئلة الشائعة', 'حجز موعد'] },
+          ].map((col) => (
+            <View key={col.title} style={styles.footerCol}>
+              <Text style={styles.footerColTitle}>{col.title}</Text>
+              {col.links.map((l) => (
+                <Text key={l} style={styles.footerLink}>{l}</Text>
+              ))}
+            </View>
+          ))}
+
+          <Text style={styles.footerBottom}>© 2026 ATEEM. جميع الحقوق محفوظة.</Text>
+        </View>
       </ScrollView>
 
       {/* ===== Bottom Nav ===== */}
-      {/* الترتيب هنا بديهي (هوم، بحث، متجر، شخصي)، وانعكاس RTL التلقائي
-          هو اللي بيخلي "الهوم" يظهر أقصى اليمين و"الشخصي" أقصى الشمال فعلياً */}
       <View style={styles.bottomNav}>
-        {[
-          { key: 'home', icon: 'home', label: 'الهوم', active: true },
-          { key: 'search', icon: 'search', label: 'بحث' },
-          { key: 'store', icon: 'bag', label: 'المتجر' },
-          { key: 'profile', icon: 'user', label: 'الشخصي' },
-        ].map((item) => (
-          <TouchableOpacity key={item.key} style={styles.bottomNavBtn}>
-            <LineIcon
-              name={item.icon}
-              size={25}
-              color={item.active ? COLORS.gold : COLORS.ink}
-              strokeWidth={1.6}
-            />
-            <Text style={[styles.bottomNavText, item.active && styles.bottomNavActive]}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>🏠</Icon>
+          <Text style={[styles.bottomNavText, styles.bottomNavActive]}>الهوم</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>🔍</Icon>
+          <Text style={styles.bottomNavText}>بحث</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>🛒</Icon>
+          <Text style={styles.bottomNavText}>المتجر</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomNavBtn}>
+          <Icon size={16}>👤</Icon>
+          <Text style={styles.bottomNavText}>الشخصي</Text>
+        </TouchableOpacity>
       </View>
+      {/* ===== زرار الشات العائم — بيفتح مستشار ATEEM فوق أي شاشة، بنفس
+          فكرة NativeChatOverlay القديمة، من غير ما يتداخل مع bottom nav ===== */}
+      <TouchableOpacity
+        style={styles.chatFab}
+        activeOpacity={0.85}
+        onPress={() => setChatOpen(true)}
+      >
+        <Text style={styles.chatFabIcon}>✦</Text>
+      </TouchableOpacity>
+
+      <ChatOverlay
+        visible={chatOpen}
+        onClose={() => setChatOpen(false)}
+        products={products}
+      />
     </SafeAreaView>
   );
 }
@@ -444,29 +408,29 @@ const CARD_W = (width - 24 * 2 - CARD_GAP) / 2;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.ivory },
-  scrollContent: { paddingBottom: 16 },
+  scrollContent: { paddingBottom: 70 },
 
   // Navbar
   navbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: COLORS.ivory,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(245,241,232,0.95)',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  menuBtn: { width: 48, height: 48, alignItems: 'flex-start', justifyContent: 'center' },
+  menuBtn: { width: 36 },
   brandWrap: { alignItems: 'center' },
-  brand: { fontSize: 26, letterSpacing: 4, color: COLORS.charcoal, fontWeight: '300' },
-  tagline: { fontSize: 10, letterSpacing: 2.5, color: COLORS.gold, marginTop: 3 },
-  navIcons: { flexDirection: 'row', alignItems: 'center', width: 48, height: 48, justifyContent: 'flex-end' },
+  brand: { fontSize: 20, letterSpacing: 3, color: COLORS.charcoal, fontWeight: '300' },
+  tagline: { fontSize: 8, letterSpacing: 2, color: COLORS.gold, marginTop: 2 },
+  navIcons: { flexDirection: 'row', alignItems: 'center', width: 60, justifyContent: 'flex-end' },
   cartBadge: {
-    position: 'absolute', top: -6, left: -8, backgroundColor: COLORS.charcoal,
-    width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', top: -6, left: -6, backgroundColor: COLORS.charcoal,
+    width: 15, height: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
   },
-  cartBadgeText: { color: COLORS.ivory, fontSize: 10 },
+  cartBadgeText: { color: COLORS.ivory, fontSize: 8 },
 
   // Mobile menu
   menuOverlay: { flex: 1, backgroundColor: 'rgba(43,38,34,0.4)' },
@@ -474,14 +438,14 @@ const styles = StyleSheet.create({
     marginTop: 70, alignSelf: 'center', width: '70%', backgroundColor: COLORS.ivoryLight,
     borderRadius: 8, paddingVertical: 10, paddingHorizontal: 22,
   },
-  menuLinkRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  menuLinkRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   menuLinkText: { fontSize: 16, color: COLORS.ink },
 
   // Hero
   hero: { paddingBottom: 10 },
-  heroImage: { width: '100%', height: 240 },
+  heroImage: { width: '100%', height: 380 },
   floatingCard: {
-    position: 'absolute', top: 150, left: 20, backgroundColor: COLORS.ivoryLight,
+    position: 'absolute', top: 340, left: 20, backgroundColor: 'rgba(255,255,255,0.96)',
     padding: 16, maxWidth: 190, borderWidth: 1, borderColor: COLORS.ivoryDark,
   },
   floatingLabel: { fontSize: 9, letterSpacing: 1.5, color: COLORS.gold, textTransform: 'uppercase', marginBottom: 4 },
@@ -489,7 +453,7 @@ const styles = StyleSheet.create({
   floatingPrice: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
   floatingAdd: { fontSize: 10, letterSpacing: 1, color: COLORS.gold, textDecorationLine: 'underline' },
 
-  heroText: { paddingHorizontal: 24, paddingTop: 60 },
+  heroText: { paddingHorizontal: 24, paddingTop: 28 },
   heroLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   heroLine: { width: 32, height: 1, backgroundColor: COLORS.gold, marginLeft: 10 },
   heroLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
@@ -497,16 +461,13 @@ const styles = StyleSheet.create({
   heroTitleItalic: { fontStyle: 'italic', color: COLORS.gold },
   heroDesc: { color: COLORS.textMuted, fontSize: 15, lineHeight: 24, marginBottom: 24 },
   heroButtons: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  btnPrimary: {
-    backgroundColor: COLORS.charcoal, paddingVertical: 16, paddingHorizontal: 32,
-    minHeight: 50, alignItems: 'center', justifyContent: 'center',
-  },
+  btnPrimary: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 28 },
   btnPrimaryText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
   btnText: { color: COLORS.gold, fontSize: 12, letterSpacing: 1, textDecorationLine: 'underline' },
 
   // Sections generic
-  section: { paddingHorizontal: 20, paddingVertical: 32 },
-  sectionAlt: { backgroundColor: COLORS.ivory },
+  section: { paddingHorizontal: 20, paddingVertical: 40 },
+  sectionAlt: { backgroundColor: 'rgba(255,255,255,0.5)' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 },
   sectionLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
   sectionTitle: { fontSize: 26, color: COLORS.ink, fontWeight: '300' },
@@ -516,7 +477,7 @@ const styles = StyleSheet.create({
   categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, justifyContent: 'space-between' },
   categoryCard: { width: CARD_W, height: CARD_W * 1.3, overflow: 'hidden', marginBottom: CARD_GAP },
   categoryImage: { width: '100%', height: '100%' },
-  categoryOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(43,38,34,0.34)' },
+  categoryOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(92,32,41,0.35)' },
   categoryContent: { position: 'absolute', bottom: 14, right: 14, left: 14 },
   categoryTitle: { fontSize: 20, color: '#fff', fontWeight: '300', marginBottom: 4 },
   categoryCta: { fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.85)' },
@@ -533,14 +494,38 @@ const styles = StyleSheet.create({
   productBadgeGold: { backgroundColor: COLORS.gold },
   productBadgeText: { color: COLORS.ivory, fontSize: 9, letterSpacing: 1 },
   addToCartBtn: {
-    position: 'absolute', bottom: 10, left: 10, width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(245,241,232,0.92)', alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', bottom: 10, left: 10, width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center',
   },
   productName: { fontSize: 14, color: COLORS.ink, marginBottom: 3 },
   productPrice: { fontSize: 13, color: COLORS.gold },
+  productsStateWrap: { paddingVertical: 30, alignItems: 'center' },
+  productsStateText: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', paddingHorizontal: 20 },
+
+  // زرار الشات العائم — فوق bottom nav (56px) بهامش مريح، بلون البراند
+  // الأساسي (charcoal/burgundy) وحلقة ذهبية رفيعة بدل حدود سميكة.
+  chatFab: {
+    position: 'absolute',
+    left: 18,
+    bottom: 56 + 18,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.charcoal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(201,185,154,0.55)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  chatFabIcon: { color: COLORS.goldLight, fontSize: 22 },
 
   // Lookbook
-  lookbook: { backgroundColor: COLORS.charcoal, paddingVertical: 40, paddingHorizontal: 20 },
+  lookbook: { backgroundColor: COLORS.charcoal, paddingVertical: 50, paddingHorizontal: 20 },
   lookbookHeader: { alignItems: 'center', marginBottom: 30 },
   lookLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
   lookTitle: { color: COLORS.ivory, fontSize: 28, fontWeight: '300', marginBottom: 8 },
@@ -555,14 +540,13 @@ const styles = StyleSheet.create({
   lookItemTitle: { color: '#fff', fontSize: 18, fontWeight: '300', marginBottom: 4 },
   lookSeason: { color: COLORS.goldLight, fontSize: 10, letterSpacing: 1.5 },
   lookFooterBtn: {
-    alignSelf: 'center', marginTop: 20, paddingVertical: 16, paddingHorizontal: 36,
-    minHeight: 50, alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'center', marginTop: 20, paddingVertical: 14, paddingHorizontal: 36,
     borderWidth: 1, borderColor: 'rgba(245,241,232,0.4)',
   },
   lookFooterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
 
   // Craftsmanship
-  craft: { paddingHorizontal: 20, paddingVertical: 40 },
+  craft: { paddingHorizontal: 20, paddingVertical: 50 },
   craftImageWrap: { position: 'relative', marginBottom: 40 },
   craftImage: { width: '100%', height: 320, borderRadius: 4 },
   craftStat: { position: 'absolute', bottom: -20, left: 10, backgroundColor: COLORS.charcoal, padding: 20 },
@@ -582,10 +566,7 @@ const styles = StyleSheet.create({
   },
   editorialLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 },
   editorialTitle: { color: '#fff', fontSize: 30, fontWeight: '300', textAlign: 'center', lineHeight: 36, marginBottom: 20 },
-  editorialBtn: {
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 16, paddingHorizontal: 32,
-    minHeight: 50, alignItems: 'center', justifyContent: 'center',
-  },
+  editorialBtn: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 14, paddingHorizontal: 32 },
   editorialBtnText: { color: '#fff', fontSize: 12, letterSpacing: 1.5 },
 
   // Trust
@@ -594,42 +575,33 @@ const styles = StyleSheet.create({
   trustTitle: { fontSize: 15, color: COLORS.ink, marginBottom: 4 },
   trustDesc: { fontSize: 10, color: COLORS.gold, letterSpacing: 1, textAlign: 'center' },
 
-  // Newsletter (Compact Luxury Invitation Card)
-  newsletterCard: {
-    marginHorizontal: 20,
-    marginVertical: 28,
-    paddingVertical: 28,
-    paddingHorizontal: 22,
-    borderWidth: 1,
-    borderColor: COLORS.goldLight,
-    backgroundColor: COLORS.ivoryLight,
-    alignItems: 'center',
-  },
-  newsletterTitle: { fontSize: 19, color: COLORS.ink, fontWeight: '300', marginBottom: 6, textAlign: 'center' },
-  newsletterDesc: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 18 },
-  newsletterRow: { flexDirection: 'row', width: '100%', gap: 10 },
+  // Newsletter
+  newsletter: { paddingHorizontal: 24, paddingVertical: 50, alignItems: 'center' },
+  newsletterTitle: { fontSize: 24, color: COLORS.ink, fontWeight: '300', marginBottom: 10, textAlign: 'center' },
+  newsletterDesc: { color: COLORS.textMuted, textAlign: 'center', marginBottom: 24 },
   newsletterInput: {
-    flex: 1, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.ivory,
-    paddingVertical: 12, paddingHorizontal: 14, textAlign: 'right', fontSize: 13,
+    width: '100%', borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#fff',
+    paddingVertical: 14, paddingHorizontal: 18, marginBottom: 12, textAlign: 'right',
   },
-  newsletterBtn: {
-    backgroundColor: COLORS.charcoal, paddingHorizontal: 22,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  newsletterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1 },
+  newsletterBtn: { backgroundColor: COLORS.charcoal, paddingVertical: 14, paddingHorizontal: 30, width: '100%', alignItems: 'center' },
+  newsletterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
 
-  // Closing mark (بديل صغير جداً عن الـ Footer القديم)
-  closingMark: { alignItems: 'center', paddingBottom: 8 },
-  closingBrand: { fontSize: 14, letterSpacing: 3, color: COLORS.gold, fontWeight: '300' },
-  closingTagline: { fontSize: 9, letterSpacing: 1.5, color: COLORS.textSubtle, marginTop: 4 },
+  // Footer
+  footer: { backgroundColor: COLORS.charcoal, paddingHorizontal: 24, paddingVertical: 50 },
+  footerBrand: { color: COLORS.ivory, fontSize: 20, letterSpacing: 3, marginBottom: 10 },
+  footerTagline: { color: COLORS.goldLight, fontSize: 13, lineHeight: 20, marginBottom: 28 },
+  footerCol: { marginBottom: 24 },
+  footerColTitle: { color: COLORS.gold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
+  footerLink: { color: COLORS.goldLight, fontSize: 14, marginBottom: 8 },
+  footerBottom: { color: COLORS.gold, fontSize: 10, letterSpacing: 1, marginTop: 10, textAlign: 'center' },
 
   // Bottom nav
   bottomNav: {
-    flexDirection: 'row', height: 60, backgroundColor: COLORS.ivory,
+    flexDirection: 'row', height: 56, backgroundColor: 'rgba(250,248,243,0.98)',
     borderTopWidth: 1, borderTopColor: 'rgba(139,115,85,0.25)',
   },
-  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  bottomNavText: { fontSize: 8.5, color: COLORS.ink, letterSpacing: 0.5 },
+  bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  bottomNavText: { fontSize: 9, color: COLORS.ink, letterSpacing: 0.5 },
   bottomNavActive: { color: COLORS.gold },
 });
 
