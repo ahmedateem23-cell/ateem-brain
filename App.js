@@ -228,7 +228,7 @@ export default function App() {
         {/* ===== Hero ===== */}
         <View style={styles.hero}>
           <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1770582071285-e5d2ef206180?w=1400&q=90' }}
+            source={{ uri: 'https://images.unsplash.com/photo-1575032617751-6ddec2089882?w=1400&q=90' }}
             style={styles.heroImage}
           />
           <View style={styles.floatingCard}>
@@ -389,37 +389,29 @@ export default function App() {
           </View>
         </View>
 
-        {/* ===== Newsletter ===== */}
-        <View style={styles.newsletter}>
-          <Text style={styles.sectionLabel}>كن ضمن دائرتنا الخاصة</Text>
-          <Text style={styles.newsletterTitle}>اشترك في نشرتنا الإخبارية</Text>
-          <Text style={styles.newsletterDesc}>كن أول من يطلع على المجموعات الجديدة والعروض الحصرية.</Text>
-          <TextInput style={styles.newsletterInput} placeholder="بريدك الإلكتروني" placeholderTextColor={COLORS.textSubtle} keyboardType="email-address" />
-          <TouchableOpacity style={styles.newsletterBtn}>
-            <Text style={styles.newsletterBtnText}>اشتراك</Text>
-          </TouchableOpacity>
+        {/* ===== Newsletter (Compact Luxury Invitation) ===== */}
+        <View style={styles.newsletterCard}>
+          <Text style={styles.newsletterTitle}>كن أول من يكتشف الجديد</Text>
+          <Text style={styles.newsletterDesc}>وصل أحدث المجموعات والعروض المختارة أولًا</Text>
+          <View style={styles.newsletterRow}>
+            <TextInput
+              style={styles.newsletterInput}
+              placeholder="بريدك الإلكتروني"
+              placeholderTextColor={COLORS.textSubtle}
+              keyboardType="email-address"
+            />
+            <TouchableOpacity style={styles.newsletterBtn}>
+              <Text style={styles.newsletterBtnText}>اشترك</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* ===== Footer ===== */}
-        <View style={styles.footer}>
-          <Text style={styles.footerBrand}>ATEEM</Text>
-          <Text style={styles.footerTagline}>أناقة رجالية ونسائية فاخرة، بروح عصرية هادئة. قطع تروي قصة لا تُنسى.</Text>
-
-          {[
-            { title: 'تسوق', links: ['نساء', 'رجال', 'إكسسوارات', 'مجوهرات', 'هدايا'] },
-            { title: 'العلامة التجارية', links: ['قصتنا', 'الحرفية', 'الاستدامة', 'الوظائف'] },
-            { title: 'خدمة العملاء', links: ['تواصل معنا', 'الشحن والإرجاع', 'الأسئلة الشائعة', 'حجز موعد'] },
-          ].map((col) => (
-            <View key={col.title} style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>{col.title}</Text>
-              {col.links.map((l) => (
-                <Text key={l} style={styles.footerLink}>{l}</Text>
-              ))}
-            </View>
-          ))}
-
-          <Text style={styles.footerBottom}>© 2026 ATEEM. جميع الحقوق محفوظة.</Text>
+        {/* ===== لمسة ختامية بسيطة جداً ===== */}
+        <View style={styles.closingMark}>
+          <Text style={styles.closingBrand}>ATEEM</Text>
+          <Text style={styles.closingTagline}>Sudan · Modern Luxury</Text>
         </View>
+
       </ScrollView>
 
       {/* ===== Bottom Nav ===== */}
@@ -452,7 +444,7 @@ const CARD_W = (width - 24 * 2 - CARD_GAP) / 2;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.ivory },
-  scrollContent: { paddingBottom: 70 },
+  scrollContent: { paddingBottom: 16 },
 
   // Navbar
   navbar: {
@@ -461,7 +453,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: 'rgba(245,241,232,0.95)',
+    backgroundColor: COLORS.ivory,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -489,7 +481,7 @@ const styles = StyleSheet.create({
   hero: { paddingBottom: 10 },
   heroImage: { width: '100%', height: 240 },
   floatingCard: {
-    position: 'absolute', top: 150, left: 20, backgroundColor: 'rgba(255,255,255,0.97)',
+    position: 'absolute', top: 150, left: 20, backgroundColor: COLORS.ivoryLight,
     padding: 16, maxWidth: 190, borderWidth: 1, borderColor: COLORS.ivoryDark,
   },
   floatingLabel: { fontSize: 9, letterSpacing: 1.5, color: COLORS.gold, textTransform: 'uppercase', marginBottom: 4 },
@@ -513,8 +505,8 @@ const styles = StyleSheet.create({
   btnText: { color: COLORS.gold, fontSize: 12, letterSpacing: 1, textDecorationLine: 'underline' },
 
   // Sections generic
-  section: { paddingHorizontal: 20, paddingVertical: 40 },
-  sectionAlt: { backgroundColor: 'rgba(255,255,255,0.5)' },
+  section: { paddingHorizontal: 20, paddingVertical: 32 },
+  sectionAlt: { backgroundColor: COLORS.ivory },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 },
   sectionLabel: { color: COLORS.gold, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
   sectionTitle: { fontSize: 26, color: COLORS.ink, fontWeight: '300' },
@@ -524,7 +516,7 @@ const styles = StyleSheet.create({
   categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, justifyContent: 'space-between' },
   categoryCard: { width: CARD_W, height: CARD_W * 1.3, overflow: 'hidden', marginBottom: CARD_GAP },
   categoryImage: { width: '100%', height: '100%' },
-  categoryOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(92,32,41,0.35)' },
+  categoryOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(43,38,34,0.34)' },
   categoryContent: { position: 'absolute', bottom: 14, right: 14, left: 14 },
   categoryTitle: { fontSize: 20, color: '#fff', fontWeight: '300', marginBottom: 4 },
   categoryCta: { fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.85)' },
@@ -542,13 +534,13 @@ const styles = StyleSheet.create({
   productBadgeText: { color: COLORS.ivory, fontSize: 9, letterSpacing: 1 },
   addToCartBtn: {
     position: 'absolute', bottom: 10, left: 10, width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(245,241,232,0.92)', alignItems: 'center', justifyContent: 'center',
   },
   productName: { fontSize: 14, color: COLORS.ink, marginBottom: 3 },
   productPrice: { fontSize: 13, color: COLORS.gold },
 
   // Lookbook
-  lookbook: { backgroundColor: COLORS.charcoal, paddingVertical: 50, paddingHorizontal: 20 },
+  lookbook: { backgroundColor: COLORS.charcoal, paddingVertical: 40, paddingHorizontal: 20 },
   lookbookHeader: { alignItems: 'center', marginBottom: 30 },
   lookLabel: { color: COLORS.goldLight, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 },
   lookTitle: { color: COLORS.ivory, fontSize: 28, fontWeight: '300', marginBottom: 8 },
@@ -570,7 +562,7 @@ const styles = StyleSheet.create({
   lookFooterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
 
   // Craftsmanship
-  craft: { paddingHorizontal: 20, paddingVertical: 50 },
+  craft: { paddingHorizontal: 20, paddingVertical: 40 },
   craftImageWrap: { position: 'relative', marginBottom: 40 },
   craftImage: { width: '100%', height: 320, borderRadius: 4 },
   craftStat: { position: 'absolute', bottom: -20, left: 10, backgroundColor: COLORS.charcoal, padding: 20 },
@@ -602,32 +594,38 @@ const styles = StyleSheet.create({
   trustTitle: { fontSize: 15, color: COLORS.ink, marginBottom: 4 },
   trustDesc: { fontSize: 10, color: COLORS.gold, letterSpacing: 1, textAlign: 'center' },
 
-  // Newsletter
-  newsletter: { paddingHorizontal: 24, paddingVertical: 50, alignItems: 'center' },
-  newsletterTitle: { fontSize: 24, color: COLORS.ink, fontWeight: '300', marginBottom: 10, textAlign: 'center' },
-  newsletterDesc: { color: COLORS.textMuted, textAlign: 'center', marginBottom: 24 },
+  // Newsletter (Compact Luxury Invitation Card)
+  newsletterCard: {
+    marginHorizontal: 20,
+    marginVertical: 28,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    borderWidth: 1,
+    borderColor: COLORS.goldLight,
+    backgroundColor: COLORS.ivoryLight,
+    alignItems: 'center',
+  },
+  newsletterTitle: { fontSize: 19, color: COLORS.ink, fontWeight: '300', marginBottom: 6, textAlign: 'center' },
+  newsletterDesc: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 18 },
+  newsletterRow: { flexDirection: 'row', width: '100%', gap: 10 },
   newsletterInput: {
-    width: '100%', borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#fff',
-    paddingVertical: 16, paddingHorizontal: 18, marginBottom: 12, textAlign: 'right',
+    flex: 1, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.ivory,
+    paddingVertical: 12, paddingHorizontal: 14, textAlign: 'right', fontSize: 13,
   },
   newsletterBtn: {
-    backgroundColor: COLORS.charcoal, paddingVertical: 16, paddingHorizontal: 30, width: '100%',
-    minHeight: 50, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.charcoal, paddingHorizontal: 22,
+    alignItems: 'center', justifyContent: 'center',
   },
-  newsletterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1.5 },
+  newsletterBtnText: { color: COLORS.ivory, fontSize: 12, letterSpacing: 1 },
 
-  // Footer
-  footer: { backgroundColor: COLORS.charcoal, paddingHorizontal: 24, paddingVertical: 50 },
-  footerBrand: { color: COLORS.ivory, fontSize: 20, letterSpacing: 3, marginBottom: 10 },
-  footerTagline: { color: COLORS.goldLight, fontSize: 13, lineHeight: 20, marginBottom: 28 },
-  footerCol: { marginBottom: 24 },
-  footerColTitle: { color: COLORS.gold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
-  footerLink: { color: COLORS.goldLight, fontSize: 14, marginBottom: 8 },
-  footerBottom: { color: COLORS.gold, fontSize: 10, letterSpacing: 1, marginTop: 10, textAlign: 'center' },
+  // Closing mark (بديل صغير جداً عن الـ Footer القديم)
+  closingMark: { alignItems: 'center', paddingBottom: 8 },
+  closingBrand: { fontSize: 14, letterSpacing: 3, color: COLORS.gold, fontWeight: '300' },
+  closingTagline: { fontSize: 9, letterSpacing: 1.5, color: COLORS.textSubtle, marginTop: 4 },
 
   // Bottom nav
   bottomNav: {
-    flexDirection: 'row', height: 60, backgroundColor: 'rgba(250,248,243,0.98)',
+    flexDirection: 'row', height: 60, backgroundColor: COLORS.ivory,
     borderTopWidth: 1, borderTopColor: 'rgba(139,115,85,0.25)',
   },
   bottomNavBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
