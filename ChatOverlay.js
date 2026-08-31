@@ -3,6 +3,7 @@ import {
   Modal,
   View,
   Text,
+  Image,
   ScrollView,
   TextInput,
   TouchableOpacity,
@@ -19,23 +20,10 @@ import { Audio } from 'expo-av';
 import Voice from '@react-native-voice/voice';
 import * as Notifications from 'expo-notifications';
 import { COLORS } from './colors';
-/* ═══ ATEEM Concierge — نسخة React Native من chat.html ═══
-   نفس الشخصية، نفس منطق الطلب الحقيقي عبر Odoo، نفس الـ Worker proxy.
-   بدون واجهة WebView خالص — عناصر RN أصلية (Modal/ScrollView/TextInput).
-
-   الآن فيه تسجيل صوتي (@react-native-voice/voice) وقراءة الردود
-   بصوت عالٍ (ElevenLabs TTS عبر الـ Worker + expo-av للتشغيل).
-
-   لسه ناقص عن قصد:
-   - إشعار Push وقت تأكيد الطلب (fcmToken) — يحتاج expo-notifications
-     مع إعداد Firebase؛ ملف google-services.json وصل، بس السلك لسه
-     مش موصول (getNativeFcmToken() تحت بترجع null لحد ما نفعّله). */
+import { THEME } from './theme';
 
 const ATEEM_PROXY_URL = 'https://ateem-proxy.ahmedatim23.workers.dev/';
 const GROQ_MODEL = 'openai/gpt-oss-120b';
-// ⚠️ افتراض: الـ Worker فيه مسار /tts بياخد { text } ويرجّع صوت MP3 خام
-// (زي ما بيحصل في chat.html الأصلي عبر ElevenLabs). لو المسار الفعلي
-// مختلف عندك في الـ Worker، بدّل القيمة دي بس ومفيش حاجة تانية تتغيّر.
 const ATEEM_TTS_PATH = 'tts';
 
 const ATEEM_POLICY_TEXT = `
@@ -60,8 +48,6 @@ function slugFallbackUrl(name) {
   return 'https://ateem-store.odoo.com/shop?search=' + encodeURIComponent(name || '');
 }
 
-/* بيطبّع شكل المنتج القادم من /odoo-products لنفس الشكل اللي كان
-   البرومبت والبطاقات في chat.html بتستخدمه. */
 function normalizeProduct(p) {
   return {
     id: String(p.id),
@@ -96,34 +82,31 @@ function buildSystemPrompt(products) {
 الشخصية والأسلوب:
 - راقٍ، واثق، مختصر، دافئ. جملك قصيرة وأنيقة — لا تتجاوز عادةً 3-4 أسطر.
 - فصحى راقية ممزوجة بلمسة سودانية خفيفة طبيعية، بلا تكلّف.
-- استخدمي رمز 💎 مرة واحدة فقط في كامل المحادثة — راجعي الرسائل السابقة في السياق، وإن كنتِ استخدمتيه من قبل في هذه المحادثة فلا تكرريه أبداً.
-- ممنوع تماماً عبارات مثل "يا فندم" أو "تمت العملية بنجاح" أو أي صياغة جافة رسمية. بدلاً من "تم إضافة المنتج للسلة" قولي مثلاً "تم، أضفت ليك القميص الأسود مقاس M للسلة 💎".
-- عدّلي لطفك حسب سياق الحديث: مع سيدة أو فتاة كوني ألطف وأكثر رقّة في اختيار الكلمات، ومع رجل التزمي برقي مباشر ودافئ. لا تفترضي جنس العميل إلا إذا اتضح من كلامه.
-- الهدوء والثقة سمة العلامة — بلا علامات تعجب كثيرة وبلا لغة تسويقية صاخبة.
+- استخدمي رمز 💎 مرة واحدة فقط في كامل المحادثة.
+- ممنوع تماماً عبارات جافة رسمية.
+- عدّلي لطفك حسب سياق الحديث دون افتراض جنس العميل إلا إذا اتضح من كلامه.
 
-قائمة المنتجات المتوفرة حالياً في المتجر (تُقرأ تلقائياً من مخزون ATEEM الفعلي عبر Odoo، ولا تحتوي إلا على المنتجات الظاهرة والمتاحة الآن):
-${productLines || '(تعذّر تحميل القائمة الآن — إن سُئلت عن منتج معيّن، اعتذري بلطف واقترحي على العميل المحاولة خلال قليل أو تصفّح المتجر مباشرة)'}
+قائمة المنتجات المتوفرة حالياً في المتجر:
+${productLines || '(تعذّر تحميل القائمة الآن — إن سُئلت عن منتج معيّن، اعتذري بلطف واقترحي على العميل المحاولة خلال قليل)'}
 ${ATEEM_POLICY_TEXT}
 
 تعليمات الترشيح والاقتراح:
-- رشّحي دائماً من هذه القائمة فقط، ولا تخترعي أبداً منتجاً أو مقاساً أو لوناً أو سعراً غير مذكور فيها — فرّقي بدقة بين المقاس والسعر واللون كما وردت بالضبط.
-- عندما يذكر العميل مناسبة أو لوناً أو ذوقاً معيّناً، رشّحي 3 منتجات كحد أقصى في الرسالة الواحدة، لا أكثر — الجودة لا الكمية.
-- عند ترشيح منتج اذكري رمزه [id] بين أقواس مربعة ليظهر تلقائياً كبطاقة أنيقة بصورته وسعره ورابط شرائه داخل المحادثة.
-- تنسيق اللبس: إذا كان لدى العميل منتج معيّن، اقترحي معه قطعة مكمّلة موجودة فعلياً في القائمة أعلاه بذكر اسمها (مثال: "القميص ده بيمشي معاه بنطلون [اسم المنتج الفعلي من القائمة]") — لا تخترعي أرقام منتجات غير موجودة.
-- إذا سأل العميل عن مقاس أو لون منتج معيّن ولم يكن مذكوراً أمامه في القائمة، أخبريه بلطف أنك ستتأكدين له بدل تخمين الإجابة.
-- افهمي احتياج العميل أولاً (المناسبة، الذوق، الميزانية) قبل أن تقترحي، بدلاً من عرض كل شيء دفعة واحدة.
-- إن لم تعرفي إجابة سؤال معيّن بثقة، لا تخمّني — قولي بالضبط: "لحظة بوصلِك مع مستشار ATEEM شخصي عشان نساعدك أفضل".
+- رشّحي دائماً من هذه القائمة فقط، ولا تخترعي أبداً منتجاً أو مقاساً أو لوناً أو سعراً غير مذكور فيها.
+- رشّحي 3 منتجات كحد أقصى في الرسالة الواحدة.
+- عند ترشيح منتج اذكري رمزه [id] بين أقواس مربعة ليظهر تلقائياً كبطاقة.
+- إن لم تعرفي إجابة سؤال بثقة، قولي: "لحظة بوصلِك مع مستشار ATEEM شخصي عشان نساعدك أفضل".
 
 تعليمات إتمام الطلب والدفع:
-- إذا أبدى العميل رغبته الجدية بالشراء، اجمعي منه بأسلوب محادثة طبيعي ومختصر، على مراحل قصيرة لا دفعة واحدة: الاسم الكامل، المنتج المطلوب (مع المقاس واللون إن وُجدا ضمن خيارات المنتج)، العنوان الكامل، رقم الهاتف، وطريقة الدفع المفضّلة (تحويل بنكي / فوري / الدفع عند الاستلام).
-- بمجرد اكتمال كل البيانات وتأكيد العميل النهائي على الطلب، أرسلي رسالة تأكيد قصيرة وراقية بأسلوبك الخاص (بدون عبارات جافة)، ثم أضيفي في نهاية نفس الرسالة (بعدها مباشرة، بدون أي نص إضافي بعده) وسماً مخفياً بهذا الشكل بالضبط:
+- اجمعي: الاسم الكامل، المنتج (مع المقاس واللون إن وُجدا)، العنوان الكامل، رقم الهاتف، وطريقة الدفع.
+- بعد التأكيد النهائي، أرسلي رسالة تأكيد راقية بأسلوبك، ثم أضيفي مباشرة بعدها وسماً مخفياً بهذا الشكل بالضبط:
 [ORDER_JSON]{"name":"...","product_id":"...","product":"...","size":"...","color":"...","address":"...","phone":"...","payment_method":"..."}[/ORDER_JSON]
-- قيمة product_id يجب أن تكون رقم المنتج [id] بالضبط كما ورد في قائمة المنتجات أعلاه (نفس الرقم اللي بين الأقواس المربعة) — لا تكتبي اسم المنتج فيه، هذا الحقل رقمي فقط.
-- قيمة payment_method يجب أن تكون واحدة بالضبط من: "bankak" (تحويل بنكك) أو "fawry" (فوري) أو "cod" (عند الاستلام). استخدمي "" لأي حقل غير متوفر (كاللون/المقاس إن لم يذكره العميل أو لم يكن للمنتج). لا تُرسلي هذا الوسم إلا مرة واحدة لكل طلب مكتمل ومؤكد فعلياً من العميل.
+- قيمة product_id رقمية فقط (نفس [id] بالضبط).
+- payment_method: "bankak" أو "fawry" أو "cod". استخدمي "" للحقول غير المتوفرة.
+- لا تُرسلي هذا الوسم إلا مرة واحدة لكل طلب مكتمل ومؤكد فعلياً.
 
 القواعد الذهبية:
-- ممنوع إرسال "عروض عامة" أو صياغات موجّهة للجميع — كل اقتراح يجب أن يبدو مبنياً على ما قاله هذا العميل تحديداً في هذه المحادثة.
-- تذكّري خلال هذه المحادثة نفسها كل ما يذكره العميل عن اسمه، مقاسه المفضل، الألوان التي يميل لها، وآخر منتج تحدثتما عنه، واستخدمي ذلك بشكل طبيعي في بقية الرد دون تكراره حرفياً.`;
+- كل اقتراح مبني على ما قاله هذا العميل تحديداً في هذه المحادثة.
+- تذكّري اسم العميل ومقاسه وألوانه المفضلة خلال المحادثة نفسها.`;
 }
 
 function extractOrderJson(text) {
@@ -169,9 +152,6 @@ function matchOrderVariant(product, size, color) {
   return candidates.length ? candidates[0] : null;
 }
 
-// بيطلب صلاحية الإشعارات (لو لسه ملهاش رد) وبيرجّع توكن FCM الحقيقي
-// للجهاز — بيتنادى بس وقت تأكيد طلب فعلي (مش عند فتح التطبيق ولا فتح
-// الشات)، عشان العميل ميتفاجئش بطلب صلاحية قبل ما يحتاجها فعلاً.
 async function getNativeFcmToken() {
   try {
     const existing = await Notifications.getPermissionsAsync();
@@ -181,11 +161,10 @@ async function getNativeFcmToken() {
       finalStatus = requested.status;
     }
     if (finalStatus !== 'granted') return null;
-
     const tokenData = await Notifications.getDevicePushTokenAsync();
     return tokenData?.data || null;
   } catch (e) {
-    console.warn('ATEEM: تعذّر الحصول على توكن الإشعارات (تأكد من تركيب expo-notifications وربط google-services.json):', e);
+    console.warn('ATEEM: تعذّر الحصول على توكن الإشعارات:', e);
     return null;
   }
 }
@@ -248,8 +227,6 @@ function nextMsgId() {
   return 'm' + msgIdCounter;
 }
 
-/* يحوّل صوت الرد (MP3 من الـ Worker) لـ data URI عشان expo-av
-   يقدر يشغّله مباشرة من غير ما نكتب ملف مؤقت على الجهاز. */
 function blobToDataUri(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -265,8 +242,14 @@ async function fetchTtsAudio(text) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, language: 'ar', voice_settings: { language_code: 'ar' } }),
   });
-  if (!resp.ok) throw new Error('TTS request failed: ' + resp.status);
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => '');
+    throw new Error(`TTS request failed: HTTP ${resp.status} ${errBody.slice(0, 150)}`);
+  }
   const blob = await resp.blob();
+  if (!blob || blob.size === 0) {
+    throw new Error('TTS returned empty audio');
+  }
   return blobToDataUri(blob);
 }
 
@@ -281,13 +264,10 @@ export default function ChatOverlay({ visible, onClose, products }) {
   const conversationHistory = useRef([]);
   const scrollRef = useRef(null);
 
-  // ===== قراءة الردود بصوت (TTS) =====
   const soundRef = useRef(null);
-  const [playingId, setPlayingId] = useState(null); // id الرسالة اللي بتتشغّل دلوقتي
-  const [loadingTtsId, setLoadingTtsId] = useState(null); // id الرسالة اللي بيتجهّز صوتها
-  const [autoRead, setAutoRead] = useState(false); // قراءة كل رد جديد تلقائياً
+  const [playingId, setPlayingId] = useState(null);
+  const [loadingTtsId, setLoadingTtsId] = useState(null);
 
-  // ===== التسجيل الصوتي (STT) =====
   const [isRecording, setIsRecording] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(true);
   const recognizedTextRef = useRef('');
@@ -299,16 +279,15 @@ export default function ChatOverlay({ visible, onClose, products }) {
     }
   }, [visible]);
 
-  // إعداد وضع الصوت مرة واحدة (يسمح بالتشغيل حتى لو الجهاز على صامت)
   useEffect(() => {
     Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
-    }).catch(() => {});
+      allowsRecordingIOS: false,
+    }).catch((e) => console.warn('ATEEM: تعذّر ضبط وضع الصوت:', e));
   }, []);
 
-  // مستمعو مكتبة التعرّف على الصوت
   useEffect(() => {
     Voice.onSpeechStart = () => setIsRecording(true);
     Voice.onSpeechPartialResults = (e) => {
@@ -342,7 +321,6 @@ export default function ChatOverlay({ visible, onClose, products }) {
     };
   }, []);
 
-  // نبضة بصرية بسيطة على زر الميكروفون أثناء التسجيل
   useEffect(() => {
     if (!isRecording) {
       micPulse.setValue(1);
@@ -358,9 +336,6 @@ export default function ChatOverlay({ visible, onClose, products }) {
     return () => loop.stop();
   }, [isRecording]);
 
-  // بيطلب صلاحية الميكروفون بس أول ما العميل يدوس على زرار المايك —
-  // مفيش أي طلب صلاحية عند فتح التطبيق ولا فتح الشات. لو رفض، بنوريه
-  // رسالة لطيفة بدل ما نفشل بصمت.
   async function ensureMicPermission() {
     if (Platform.OS === 'android') {
       try {
@@ -377,8 +352,6 @@ export default function ChatOverlay({ visible, onClose, products }) {
         return false;
       }
     }
-    // iOS: نافذة النظام بتتحكم فيها نصوص Info.plist (تحت)، وبتظهر بس
-    // لما نستدعي الدالة دي، يعني بالظبط لحظة الدوس على المايك.
     try {
       const { status } = await Audio.requestPermissionsAsync();
       return status === 'granted';
@@ -407,13 +380,14 @@ export default function ChatOverlay({ visible, onClose, products }) {
       await Voice.start('ar-SA');
     } catch (e) {
       setVoiceSupported(false);
-      console.warn('ATEEM: تعذّر بدء التسجيل الصوتي (تأكد من تركيب @react-native-voice/voice):', e);
+      console.warn('ATEEM: تعذّر بدء التسجيل الصوتي:', e);
     }
   }
 
+  // ملاحظة: أضفنا Alert بالخطأ الحقيقي عشان تعرف سبب فشل الصوت
+  // بالظبط (رابط /tts خطأ، أو الـ Worker بيرجّع خطأ) بدل ما يفشل بصمت.
   async function playTTS(id, text) {
     if (!text) return;
-    // لو نفس الرسالة بتتشغّل حالياً، الزرار يوقفها بدل ما يعيد تشغيلها
     if (playingId === id) {
       try { await soundRef.current?.stopAsync(); } catch (e) { /* ignore */ }
       setPlayingId(null);
@@ -426,7 +400,7 @@ export default function ChatOverlay({ visible, onClose, products }) {
       }
       setLoadingTtsId(id);
       const dataUri = await fetchTtsAudio(text);
-      const { sound } = await Audio.Sound.createAsync({ uri: dataUri }, { shouldPlay: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: dataUri }, { shouldPlay: true, volume: 1.0 });
       soundRef.current = sound;
       setLoadingTtsId(null);
       setPlayingId(id);
@@ -437,6 +411,7 @@ export default function ChatOverlay({ visible, onClose, products }) {
       setLoadingTtsId(null);
       setPlayingId(null);
       console.warn('ATEEM: تعذّر تشغيل قراءة الرد بصوت:', e);
+      Alert.alert('تعذّر تشغيل الصوت', String(e.message || e));
     }
   }
 
@@ -483,7 +458,6 @@ export default function ChatOverlay({ visible, onClose, products }) {
         ...prev,
         { id: botId, role: 'bot', text: cleanText, time: nowTime(), productIds: ids },
       ]);
-      if (autoRead) playTTS(botId, cleanText);
       if (orderData) submitOdooOrder(orderData);
     } catch (e) {
       setMessages((prev) => [
@@ -506,11 +480,8 @@ export default function ChatOverlay({ visible, onClose, products }) {
         activeOpacity={0.85}
         onPress={() => p.url && Linking.openURL(p.url)}
       >
-        {!!p.img && <Text style={cs.productCardImgPlaceholder}> </Text>}
         <View style={cs.productCardImgWrap}>
-          {p.img ? (
-            <ChatProductImage uri={p.img} />
-          ) : null}
+          {p.img ? <ChatProductImage uri={p.img} /> : null}
         </View>
         <View style={cs.productCardInfo}>
           <Text style={cs.productCardName} numberOfLines={1}>{p.name}</Text>
@@ -534,9 +505,7 @@ export default function ChatOverlay({ visible, onClose, products }) {
             {/* ===== Header ===== */}
             <View style={cs.header}>
               <View style={cs.headerContent}>
-                <View style={cs.logoWrap}>
-                  <Text style={cs.logoText}>A</Text>
-                </View>
+                <Image source={require('./assets/bot-avatar.png')} style={cs.logoImg} />
                 <View>
                   <Text style={cs.title}>ATEEM Concierge</Text>
                   <View style={cs.subRow}>
@@ -545,20 +514,9 @@ export default function ChatOverlay({ visible, onClose, products }) {
                   </View>
                 </View>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity
-                  style={[cs.autoReadBtn, autoRead && cs.autoReadBtnActive]}
-                  onPress={() => setAutoRead((v) => !v)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[cs.autoReadBtnText, autoRead && cs.autoReadBtnTextActive]}>
-                    {autoRead ? '🔊' : '🔇'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={cs.closeBtn} onPress={onClose} activeOpacity={0.8}>
-                  <Text style={cs.closeBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={cs.closeBtn} onPress={onClose} activeOpacity={0.8}>
+                <Text style={cs.closeBtnText}>✕</Text>
+              </TouchableOpacity>
             </View>
 
             {/* ===== Messages ===== */}
@@ -622,7 +580,7 @@ export default function ChatOverlay({ visible, onClose, products }) {
               {sending && (
                 <View style={cs.botWrap}>
                   <View style={[cs.botBubble, { flexDirection: 'row', alignItems: 'center' }]}>
-                    <ActivityIndicator size="small" color={COLORS.charcoal} />
+                    <ActivityIndicator size="small" color={COLORS.burgundy} />
                   </View>
                 </View>
               )}
@@ -656,7 +614,7 @@ export default function ChatOverlay({ visible, onClose, products }) {
                 value={input}
                 onChangeText={setInput}
                 placeholder={isRecording ? 'بنسمعك...' : 'اكتب رسالتك هنا...'}
-                placeholderTextColor={COLORS.textSubtle}
+                placeholderTextColor={THEME.textSecondary}
                 editable={!sending}
                 onSubmitEditing={() => handleSend()}
                 returnKeyType="send"
@@ -673,8 +631,6 @@ export default function ChatOverlay({ visible, onClose, products }) {
   );
 }
 
-// صورة المنتج جوّه الشات — مكوّن صغير منفصل عشان لو الرابط فشل يخفي
-// نفسه بهدوء بدل ما يسيب مساحة فاضية مكسورة.
 function ChatProductImage({ uri }) {
   const [failed, setFailed] = useState(false);
   const { Image } = require('react-native');
@@ -689,131 +645,117 @@ function ChatProductImage({ uri }) {
 }
 
 const cs = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(58,20,28,0.4)', justifyContent: 'flex-end' },
-  panelWrap: { paddingHorizontal: 12, paddingBottom: 24 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(26,26,26,0.45)', justifyContent: 'flex-end' },
+  panelWrap: { paddingHorizontal: 8, paddingBottom: 12 },
   panel: {
-    backgroundColor: COLORS.ivoryLight,
-    borderRadius: 24,
+    backgroundColor: THEME.background,
+    borderRadius: 20,
     overflow: 'hidden',
-    height: '78%',
+    height: '92%',
     borderWidth: 1,
-    borderColor: 'rgba(184,147,106,0.25)',
+    borderColor: THEME.border,
   },
 
   header: {
-    backgroundColor: COLORS.charcoal,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    backgroundColor: COLORS.burgundy,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(201,164,100,0.35)',
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.gold,
   },
-  headerContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoWrap: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)',
+  headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoImg: {
+    width: 42, height: 42, borderRadius: 21,
+    borderWidth: 2, borderColor: COLORS.gold,
   },
-  logoText: { color: COLORS.goldLight, fontWeight: '600', fontSize: 15 },
-  title: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  statusDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.goldLight, marginLeft: 4 },
-  subText: { color: COLORS.goldLight, fontSize: 9, letterSpacing: 0.5 },
+  title: { fontFamily: THEME.fontHeading, color: COLORS.white, fontSize: 17 },
+  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.gold, marginLeft: 5 },
+  subText: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 10, letterSpacing: 0.5 },
   closeBtn: {
-    width: 26, height: 26, borderRadius: 13,
-    borderWidth: 1.2, borderColor: 'rgba(201,164,100,0.5)',
+    width: 32, height: 32, borderRadius: 16,
+    borderWidth: 1.2, borderColor: COLORS.gold,
     alignItems: 'center', justifyContent: 'center',
   },
-  closeBtnText: { color: COLORS.goldLight, fontSize: 12 },
+  closeBtnText: { color: COLORS.gold, fontSize: 14 },
 
-  // زرار قراءة كل الردود تلقائياً (في الهيدر)
-  autoReadBtn: {
-    width: 26, height: 26, borderRadius: 13,
-    borderWidth: 1.2, borderColor: 'rgba(201,164,100,0.5)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  autoReadBtnActive: { backgroundColor: 'rgba(201,164,100,0.25)' },
-  autoReadBtnText: { fontSize: 12 },
-  autoReadBtnTextActive: {},
-
-  chatBody: { flex: 1, backgroundColor: COLORS.ivoryLight },
+  chatBody: { flex: 1, backgroundColor: THEME.background },
   chatBodyContent: { padding: 14, paddingBottom: 6 },
 
   userWrap: { alignItems: 'flex-start', maxWidth: '88%', alignSelf: 'flex-start' },
   userBubble: {
-    backgroundColor: COLORS.charcoal,
+    backgroundColor: COLORS.burgundy,
     paddingVertical: 10, paddingHorizontal: 14,
     borderRadius: 18, borderTopLeftRadius: 4,
   },
-  userText: { color: '#fff', fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
-  timeUser: { fontSize: 9, color: COLORS.textSubtle, marginTop: 2, paddingHorizontal: 4 },
+  userText: { fontFamily: THEME.fontBody, color: COLORS.white, fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
+  timeUser: { fontFamily: THEME.fontBody, fontSize: 9, color: THEME.textSecondary, marginTop: 2, paddingHorizontal: 4 },
 
   botWrap: { alignItems: 'flex-end', maxWidth: '92%', alignSelf: 'flex-end' },
   botBubble: {
-    backgroundColor: '#fff',
+    backgroundColor: THEME.card,
     paddingVertical: 10, paddingHorizontal: 14,
     borderRadius: 18, borderTopRightRadius: 4,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: THEME.border,
   },
-  botText: { color: COLORS.ink, fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
+  botText: { fontFamily: THEME.fontBody, color: THEME.textPrimary, fontSize: 13.5, lineHeight: 20, textAlign: 'right' },
   botMetaRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginTop: 2 },
-  timeBot: { fontSize: 9, color: COLORS.textSubtle, paddingHorizontal: 4 },
-  ttsBtn: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  ttsBtnText: { fontSize: 13, color: COLORS.gold },
+  timeBot: { fontFamily: THEME.fontBody, fontSize: 9, color: THEME.textSecondary, paddingHorizontal: 4 },
+  ttsBtn: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  ttsBtnText: { fontSize: 14, color: COLORS.gold },
 
   errorBubble: {
     backgroundColor: '#FBEAEA', borderWidth: 1, borderColor: '#E8B7B7',
     borderRadius: 14, padding: 12, maxWidth: '92%',
   },
-  errorText: { color: '#8A2E2E', fontSize: 12.5, fontWeight: '600', textAlign: 'right' },
-  errorDetail: { color: '#8A2E2E', fontSize: 10.5, opacity: 0.75, marginTop: 4, textAlign: 'right' },
-  retryText: { color: COLORS.charcoal, fontSize: 12, marginTop: 8, textDecorationLine: 'underline', textAlign: 'right' },
+  errorText: { fontFamily: THEME.fontBody, color: '#8A2E2E', fontSize: 12.5, fontWeight: '600', textAlign: 'right' },
+  errorDetail: { fontFamily: THEME.fontBody, color: '#8A2E2E', fontSize: 10.5, opacity: 0.75, marginTop: 4, textAlign: 'right' },
+  retryText: { fontFamily: THEME.fontBody, color: COLORS.burgundy, fontSize: 12, marginTop: 8, textDecorationLine: 'underline', textAlign: 'right' },
 
   quickWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, justifyContent: 'flex-end' },
   quickChip: {
-    borderWidth: 1.2, borderColor: 'rgba(201,164,100,0.4)', backgroundColor: '#fff',
+    borderWidth: 1.2, borderColor: COLORS.gold, backgroundColor: THEME.card,
     paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20,
   },
-  quickChipText: { fontSize: 11, color: COLORS.ink },
+  quickChipText: { fontFamily: THEME.fontBody, fontSize: 11, color: THEME.textPrimary },
 
   productsWrap: { marginTop: 6, gap: 8, width: '100%' },
   productCard: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: 10,
-    backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.border,
     borderRadius: 14, padding: 8,
   },
-  productCardImgPlaceholder: { width: 0, height: 0 },
-  productCardImgWrap: { width: 48, height: 48, borderRadius: 12, backgroundColor: COLORS.ivoryDark, overflow: 'hidden' },
+  productCardImgWrap: { width: 48, height: 48, borderRadius: 12, backgroundColor: THEME.background, overflow: 'hidden' },
   productCardInfo: { flex: 1 },
-  productCardName: { fontSize: 12.5, color: COLORS.ink, fontWeight: '600', textAlign: 'right' },
-  productCardCat: { fontSize: 10, color: COLORS.textSubtle, textAlign: 'right', marginTop: 1 },
-  productCardPrice: { fontSize: 12, color: COLORS.gold, textAlign: 'right', marginTop: 2 },
-  productCardBtn: { fontSize: 10, color: COLORS.charcoal, textDecorationLine: 'underline' },
+  productCardName: { fontFamily: THEME.fontBody, fontSize: 12.5, color: THEME.textPrimary, fontWeight: '600', textAlign: 'right' },
+  productCardCat: { fontFamily: THEME.fontBody, fontSize: 10, color: THEME.textSecondary, textAlign: 'right', marginTop: 1 },
+  productCardPrice: { fontFamily: THEME.fontBody, fontSize: 12, color: THEME.textPrice, textAlign: 'right', marginTop: 2 },
+  productCardBtn: { fontFamily: THEME.fontBody, fontSize: 10, color: COLORS.burgundy, textDecorationLine: 'underline' },
 
   inputRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
-    backgroundColor: '#fff',
+    borderTopWidth: 1, borderTopColor: THEME.border,
+    backgroundColor: THEME.card,
   },
   input: {
-    flex: 1, backgroundColor: COLORS.ivory, borderRadius: 22,
-    paddingHorizontal: 16, paddingVertical: 10, fontSize: 13.5, color: COLORS.ink,
+    flex: 1, backgroundColor: THEME.background, borderRadius: 22,
+    paddingHorizontal: 16, paddingVertical: 10, fontFamily: THEME.fontBody, fontSize: 13.5, color: THEME.textPrimary,
   },
   micBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: COLORS.ivory, borderWidth: 1, borderColor: COLORS.border,
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: THEME.background, borderWidth: 1, borderColor: THEME.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  micBtnActive: { backgroundColor: COLORS.charcoal, borderColor: COLORS.charcoal },
-  micBtnText: { fontSize: 16, color: COLORS.ink },
-  micBtnTextActive: { color: '#fff' },
+  micBtnActive: { backgroundColor: COLORS.burgundy, borderColor: COLORS.burgundy },
+  micBtnText: { fontSize: 17, color: THEME.textPrimary },
+  micBtnTextActive: { color: COLORS.white },
   sendBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.charcoal,
+    width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.burgundy,
     alignItems: 'center', justifyContent: 'center',
   },
-  sendBtnText: { color: '#fff', fontSize: 16, transform: [{ scaleX: -1 }] },
+  sendBtnText: { color: COLORS.white, fontSize: 17, transform: [{ scaleX: -1 }] },
 });
