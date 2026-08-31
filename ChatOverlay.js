@@ -18,8 +18,7 @@ import {
 import { Audio } from 'expo-av';
 import Voice from '@react-native-voice/voice';
 import * as Notifications from 'expo-notifications';
-import { COLORS } from './App';
-
+import { COLORS } from './colors';
 /* ═══ ATEEM Concierge — نسخة React Native من chat.html ═══
    نفس الشخصية، نفس منطق الطلب الحقيقي عبر Odoo، نفس الـ Worker proxy.
    بدون واجهة WebView خالص — عناصر RN أصلية (Modal/ScrollView/TextInput).
