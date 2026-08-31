@@ -13,10 +13,12 @@
       "resizeMode": "contain"
     },
     "androidStatusBar": {
-      "hidden": true,
-      "translucent": true,
-      "barStyle": "dark-content"
+  "hidden": false,
+  "translucent": false,
+  "backgroundColor": "#F5EFE6",
+  "barStyle": "dark-content"
     },
+ 
     "android": {
       "package": "com.ateem.store",
       "versionCode": 1,
