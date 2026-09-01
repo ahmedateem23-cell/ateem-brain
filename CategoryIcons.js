@@ -64,3 +64,53 @@ export function BagsIcon({ size = 26, color = '#6B1E2E' }) {
     </Svg>
   );
 }
+export function MenuIcon({ size = 26, color = '#1A1A1A' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Path d="M12 20h40M12 32h40M12 44h40" stroke={color} strokeWidth={3} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function CartIcon({ size = 26, color = '#1A1A1A' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Path d="M14 22h36l-4 26H18l-4-26Z" stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
+      <Path d="M22 22v-4c0-6 4-10 10-10s10 4 10 10v4" stroke={color} strokeWidth={2.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function SearchIcon({ size = 26, color = '#1A1A1A' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Path d="M46 46 58 58M28 46c9.9 0 18-8.1 18-18S37.9 10 28 10 10 18.1 10 28s8.1 18 18 18Z"
+        stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function HomeIcon({ size = 26, color = '#1A1A1A' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Path d="M10 28 32 10l22 18M16 24v28h32V24" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function HeartIcon({ size = 18, color = '#6B1E2E' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Path d="M32 54S8 40 8 22c0-8 6-14 13-14 5 0 9 3 11 7 2-4 6-7 11-7 7 0 13 6 13 14 0 18-24 32-24 32Z"
+        stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function PlusIcon({ size = 16, color = '#1A1A1A' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Path d="M32 12v40M12 32h40" stroke={color} strokeWidth={3.5} strokeLinecap="round" />
+    </Svg>
+  );
+    }
