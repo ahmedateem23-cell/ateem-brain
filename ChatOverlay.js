@@ -659,17 +659,12 @@ export default function ChatOverlay({ visible, onClose, products }) {
               <View style={cs.headerContent}>
                 <View style={cs.logoImgWrap}>
                   <Image source={require('./assets/bot-avatar.png')} style={cs.logoImg} />
+                  <View style={cs.statusDot} />
                 </View>
-                <View>
-                  <Text style={cs.title}>مستشار AT</Text>
-                  <View style={cs.subRow}>
-                    <View style={cs.statusDot} />
-                    <Text style={cs.subText}>متصل الأن</Text>
-                  </View>
-                </View>
+                <Text style={cs.title}>Ateem Store</Text>
               </View>
               <TouchableOpacity style={cs.closeBtn} onPress={requestClose} activeOpacity={0.7}>
-                <Ionicons name="chevron-down" size={18} color={COLORS.burgundy} />
+                <Ionicons name="close" size={16} color={COLORS.white} />
               </TouchableOpacity>
             </View>
 
@@ -680,7 +675,7 @@ export default function ChatOverlay({ visible, onClose, products }) {
               contentContainerStyle={cs.chatBodyContent}
               showsVerticalScrollIndicator={false}
             >
-              {messages.map((m) => (
+              {messages.map((m, idx) => (
                 <View key={m.id} style={{ marginBottom: 14 }}>
                   {m.role === 'user' && (
                     <View style={cs.userWrap}>
@@ -711,6 +706,24 @@ export default function ChatOverlay({ visible, onClose, products }) {
                             {m.productIds.map((id) => renderProductCard(id))}
                           </ScrollView>
                         )}
+                        {/* بطاقة خيارات سريعة ملحقة برسالة الترحيب فقط
+                            (زي "قسم النساء / قسم الرجال" في التصميم
+                            المرجعي) — بدل شريط ثابت أسفل الشات. */}
+                        {idx === 0 && messages.length === 1 && (
+                          <View style={cs.optionsWrap}>
+                            {UTILITY_ACTIONS.map((a) => (
+                              <TouchableOpacity
+                                key={a.label}
+                                style={cs.optionCard}
+                                onPress={() => handleSend(a.text)}
+                                activeOpacity={0.8}
+                              >
+                                <Ionicons name={a.icon} size={20} color={COLORS.burgundy} />
+                                <Text style={cs.optionCardText}>{a.label}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
                       </View>
                     </View>
                   )}
@@ -738,29 +751,22 @@ export default function ChatOverlay({ visible, onClose, products }) {
               )}
             </ScrollView>
 
-            {/* ===== شريط الإجراءات السريعة ===== */}
-            <View style={cs.utilityBar}>
-              {UTILITY_ACTIONS.map((a) => (
-                <TouchableOpacity key={a.label} style={cs.utilityChip} onPress={() => handleSend(a.text)} activeOpacity={0.8}>
-                  <Ionicons name={a.icon} size={14} color={COLORS.burgundy} />
-                  <Text style={cs.utilityChipText}>{a.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             {/* ===== Input ===== */}
             <View style={cs.inputRow}>
+              {/* زر موحّد: مايكروفون افتراضيًا، وبمجرد وجود نص في
+                  الحقل يتحول لسهم إرسال — وبمجرد مسح النص يرجع
+                  مايكروفون تلقائيًا (بدل زرين منفصلين). */}
               <Animated.View style={{ transform: [{ scale: micPulse }] }}>
                 <TouchableOpacity
-                  style={[cs.micBtn, isRecording && cs.micBtnActive]}
-                  onPress={toggleRecording}
+                  style={[cs.actionBtn, (isRecording || input.trim()) && cs.actionBtnActive]}
+                  onPress={() => (input.trim() ? handleSend() : toggleRecording())}
                   disabled={sending}
                   activeOpacity={0.8}
                 >
                   <Ionicons
-                    name={isRecording ? 'mic' : 'mic-outline'}
+                    name={input.trim() ? 'send' : isRecording ? 'mic' : 'mic-outline'}
                     size={19}
-                    color={isRecording ? COLORS.white : THEME.textSecondary}
+                    color={input.trim() || isRecording ? COLORS.white : COLORS.burgundy}
                   />
                 </TouchableOpacity>
               </Animated.View>
@@ -775,9 +781,6 @@ export default function ChatOverlay({ visible, onClose, products }) {
                 returnKeyType="send"
                 textAlign="right"
               />
-              <TouchableOpacity style={cs.sendBtn} onPress={() => handleSend()} disabled={sending} activeOpacity={0.8}>
-                <Ionicons name="send" size={17} color={COLORS.white} />
-              </TouchableOpacity>
             </View>
 
           </Animated.View>
@@ -807,37 +810,45 @@ const cs = StyleSheet.create({
     backgroundColor: THEME.background,
     borderRadius: 20,
     overflow: 'hidden',
-    height: '92%',
+    height: '87%',
     borderWidth: 1,
     borderColor: THEME.border,
   },
 
   // الهيدر بخلفية فاتحة (زي جسم الشات) مع خط ذهبي رفيع أسفلها فقط —
-  // بدل البلوك العنابي التقيل، مطابقةً للتصميم المرجعي.
+  // بدل البلوك العنابي التقيل، مطابقةً للتصميم المرجعي. بادينج رأسي
+  // أقل عشان الهيدر يفضل قصير بالرغم من تكبير الأفاتار.
   header: {
     backgroundColor: THEME.card,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.gold,
   },
-  headerContent: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  headerContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // position:'relative' عشان نقطة "متصل الآن" تتلزق في الزاوية السفلى
+  // اليمنى من الأفاتار بدل ما تفضل سطر نص منفصل — زي التصميم المرجعي
+  // بالظبط.
   logoImgWrap: {
-    width: 42, height: 42, borderRadius: 21,
+    width: 48, height: 48, borderRadius: 24,
     alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1.5, borderColor: 'rgba(201,169,97,0.55)',
+    overflow: 'visible',
+    position: 'relative',
   },
-  logoImg: { width: 42, height: 42, borderRadius: 21 },
-  title: { fontFamily: THEME.fontHeading, color: COLORS.burgundy, fontSize: 15, textAlign: 'right' },
-  subRow: { flexDirection: 'row-reverse', alignItems: 'center', marginTop: 2, gap: 5 },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#4CAF50' },
-  subText: { fontFamily: THEME.fontBody, color: COLORS.gold, fontSize: 11 },
+  logoImg: { width: 48, height: 48, borderRadius: 24 },
+  title: { fontFamily: THEME.fontHeading, color: COLORS.burgundy, fontSize: 16, textAlign: 'right' },
+  statusDot: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 11, height: 11, borderRadius: 5.5,
+    backgroundColor: '#4CAF50',
+    borderWidth: 2, borderColor: THEME.card,
+  },
   closeBtn: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: COLORS.burgundy,
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -910,19 +921,16 @@ const cs = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // شريط إجراءات سريعة ثابت أعلى صندوق الإدخال — يطابق الأزرار
-  // الثلاثة (عروض حصرية / سياسة التوصيل / تتبع طلبك) في التصميم
-  // المرجعي، ومتاح دائمًا بدل ما يظهر مرة واحدة بس أول المحادثة.
-  utilityBar: {
-    flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4,
-    backgroundColor: THEME.card,
+  // بطاقة الخيارات السريعة الملحقة برسالة الترحيب — أزرار بأيقونة فوق
+  // ونص تحت، مرتبة جنب بعض داخل نفس عمود رسالة البوت، بدل الشريط
+  // الثابت السابق أسفل الشات.
+  optionsWrap: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  optionCard: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#FFFDF9', borderWidth: 1, borderColor: 'rgba(201,169,97,0.4)',
+    borderRadius: 14, paddingVertical: 14, paddingHorizontal: 4,
   },
-  utilityChip: {
-    flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 5,
-    borderWidth: 1, borderColor: COLORS.gold, borderRadius: 18, backgroundColor: 'rgba(201,169,97,0.08)',
-    paddingVertical: 7, paddingHorizontal: 6,
-  },
-  utilityChipText: { fontFamily: THEME.fontBody, fontSize: 10, color: COLORS.burgundy },
+  optionCardText: { fontFamily: THEME.fontBodySemiBold, fontSize: 10.5, color: THEME.textPrimary, textAlign: 'center' },
 
   inputRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -930,18 +938,18 @@ const cs = StyleSheet.create({
     backgroundColor: THEME.card,
     borderTopWidth: 1, borderTopColor: THEME.border,
   },
+  // الحقل بقى ياخد أوسع مساحة ممكنة دلوقتي إن فيه زر واحد بس مجاوره
+  // (مش اتنين) — flex:1 كافية عشان يمد تلقائيًا لملء الفراغ.
   input: {
     flex: 1, backgroundColor: THEME.background, borderWidth: 1, borderColor: THEME.border, borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 7, fontFamily: THEME.fontBody, fontSize: 13, color: THEME.textPrimary,
+    paddingHorizontal: 16, paddingVertical: 9, fontFamily: THEME.fontBody, fontSize: 13.5, color: THEME.textPrimary,
   },
-  micBtn: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: THEME.background, borderWidth: 1, borderColor: 'rgba(201,169,97,0.4)',
+  // زر موحّد (مايكروفون ↔ إرسال) — بلا خلفية ملونة في وضع المايك
+  // الافتراضي (زي الأيقونة البسيطة في التصميم المرجعي)، وبيتحول
+  // لدائرة عنابية معبأة وقت التسجيل الفعلي أو وجود نص جاهز للإرسال.
+  actionBtn: {
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
   },
-  micBtnActive: { backgroundColor: COLORS.burgundy, borderColor: COLORS.burgundy },
-  sendBtn: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.burgundy,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  actionBtnActive: { backgroundColor: COLORS.burgundy },
 });
