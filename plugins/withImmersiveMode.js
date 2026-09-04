@@ -1,18 +1,32 @@
 /**
- * Config plugin: يفرض وضع Immersive Fullscreen (إخفاء شريط الحالة وشريط
- * التنقل) على مستوى الكود الأصلي (MainActivity)، بدل الاعتماد فقط على
- * استدعاءات JS اللي بترجع تتلغي كل ما تفتح نافذة جديدة (زي Modal).
+ * Config plugin: يفرض وضع Immersive Fullscreen كامل (إخفاء شريط الحالة
+ * العلوي وشريط التنقل السفلي معًا) على مستوى الكود الأصلي (MainActivity)،
+ * بدل الاعتماد على استدعاءات JS اللي بترجع تتلغي كل ما تفتح نافذة جديدة
+ * (زي Modal).
+ *
+ * ملاحظة مهمة (تحديث): النسخة القديمة من البلجن ده كانت بتستخدم
+ * View.SYSTEM_UI_FLAG_* (systemUiVisibility) — وده API متروك رسميًا من
+ * جوجل من Android 11 (API 30)، وبيتعارض جزئيًا مع edgeToEdgeEnabled على
+ * Android 15+ (API 35)، والنتيجة كانت شريط أسود فاضي بدل إخفاء نضيف.
+ * النسخة دي بتستخدم WindowInsetsController بدلاً منه — الـ API الرسمي
+ * الحديث المتوافق مع edge-to-edge، وبيدّي نفس سلوك "immersive sticky"
+ * (البار بيرجع يظهر مؤقتًا لو المستخدم عمل swipe من الحافة، وبعدين
+ * بيختفي تاني لوحده).
  *
  * بيشتغل عن طريق تعديل MainActivity وقت "expo prebuild" عشان يضيف
- * onWindowFocusChanged اللي بيعيد فرض الـ immersive flags تلقائياً في كل
- * مرة النافذة تسترجع التركيز (يعني كمان بعد إغلاق القائمة الجانبية).
+ * onWindowFocusChanged اللي بيعيد فرض وضع الإخفاء تلقائياً في كل مرة
+ * النافذة تسترجع التركيز (يعني كمان بعد إغلاق القائمة الجانبية أو الشات).
+ *
+ * بيتأكد كمان إن androidx.core موجودة في android/app/build.gradle
+ * (WindowInsetsControllerCompat محتاجها) — لو مش موجودة، بيضيفها تلقائيًا.
  */
-const { withMainActivity } = require('expo/config-plugins');
+const { withMainActivity, withAppBuildGradle } = require('expo/config-plugins');
 
 const MARKER = 'withImmersiveModeMarker';
+const CORE_DEP = 'androidx.core:core-ktx:1.13.1';
 
 function withImmersiveMode(config) {
-  return withMainActivity(config, (config) => {
+  config = withMainActivity(config, (config) => {
     let contents = config.modResults.contents;
     const isKotlin = config.modResults.language === 'kt';
 
@@ -21,20 +35,23 @@ function withImmersiveMode(config) {
     }
 
     if (isKotlin) {
-      if (!contents.includes('import android.view.View')) {
-        contents = contents.replace(/(package [^\n]+\n)/, `$1\nimport android.view.View\n`);
+      if (!contents.includes('import androidx.core.view.WindowCompat')) {
+        contents = contents.replace(
+          /(package [^\n]+\n)/,
+          `$1
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+`
+        );
       }
       const method = `
   // ${MARKER}
   private fun enableImmersiveMode() {
-    window.decorView.systemUiVisibility = (
-      View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-      or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-      or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-      or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-      or View.SYSTEM_UI_FLAG_FULLSCREEN
-      or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-    )
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    val controller = WindowInsetsControllerCompat(window, window.decorView)
+    controller.hide(WindowInsetsCompat.Type.systemBars())
+    controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
   }
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -47,20 +64,23 @@ function withImmersiveMode(config) {
       const lastBrace = contents.lastIndexOf('}');
       contents = contents.slice(0, lastBrace) + method + '\n' + contents.slice(lastBrace);
     } else {
-      if (!contents.includes('import android.view.View;')) {
-        contents = contents.replace(/(package [^\n]+;\n)/, `$1\nimport android.view.View;\n`);
+      if (!contents.includes('import androidx.core.view.WindowCompat;')) {
+        contents = contents.replace(
+          /(package [^\n]+;\n)/,
+          `$1
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+`
+        );
       }
       const method = `
   // ${MARKER}
   private void enableImmersiveMode() {
-    getWindow().getDecorView().setSystemUiVisibility(
-      View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-      | View.SYSTEM_UI_FLAG_FULLSCREEN
-      | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-    );
+    WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+    WindowInsetsControllerCompat controller = new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());
+    controller.hide(WindowInsetsCompat.Type.systemBars());
+    controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
   }
 
   @Override
@@ -78,6 +98,23 @@ function withImmersiveMode(config) {
     config.modResults.contents = contents;
     return config;
   });
+
+  // WindowInsetsControllerCompat جايه من androidx.core — بنتأكد إنها
+  // مضافة في dependencies بتاعة android/app/build.gradle، لأنها مش
+  // مضمونة تكون موجودة تلقائيًا في كل مشاريع Expo/RN.
+  config = withAppBuildGradle(config, (config) => {
+    let contents = config.modResults.contents;
+    if (!contents.includes('androidx.core:core')) {
+      contents = contents.replace(
+        /dependencies\s*\{/,
+        `dependencies {\n    implementation("${CORE_DEP}")`
+      );
+      config.modResults.contents = contents;
+    }
+    return config;
+  });
+
+  return config;
 }
 
 module.exports = withImmersiveMode;
