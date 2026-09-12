@@ -97,7 +97,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          keytool -list \
+          keytool -list -v \
             -keystore android/app/release.keystore \
             -storepass "$KEYSTORE_PASSWORD" \
             -alias "$KEY_ALIAS"
