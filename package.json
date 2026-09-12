@@ -21,7 +21,8 @@
     "expo-font": "~13.0.1",
     "@expo-google-fonts/playfair-display": "^0.2.3",
     "@expo-google-fonts/inter": "^0.2.3",
-    "expo-blur": "~13.0.2"
+    "expo-blur": "~13.0.2",
+    "expo-navigation-bar": "~3.0.7"
   },
   "devDependencies": {
     "@expo/cli": "^0.18.0"
